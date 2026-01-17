@@ -1,28 +1,38 @@
 import { initializeApp } from 'firebase/app';
-import { getFirestore } from 'firebase/firestore';
+import { getFirestore, Firestore } from 'firebase/firestore';
 
 // ------------------------------------------------------------------
-// TODO: REPLACE WITH YOUR FIREBASE CONFIGURATION
-// 1. Go to console.firebase.google.com
-// 2. Create a new project
-// 3. Add a Web App
-// 4. Copy the config object below
-// 5. Enable Cloud Firestore in "Test Mode" (allow read/write for testing)
+// INSTRUCTIONS:
+// 1. Go to https://console.firebase.google.com/
+// 2. Select your project -> Project Settings -> General -> Your apps
+// 3. Copy the values from the firebaseConfig object and paste them below
 // ------------------------------------------------------------------
 
 const firebaseConfig = {
-  // apiKey: "AIzaSy...",
-  // authDomain: "your-project.firebaseapp.com",
-  // projectId: "your-project",
-  // storageBucket: "your-project.firebasestorage.app",
-  // messagingSenderId: "...",
-  // appId: "..."
+  apiKey: "AIzaSyAK1vMHOprdSmVhtCDfC24I1Gz0vmVxUag",
+  authDomain: "bulletpoints-c92cb.firebaseapp.com",
+  projectId: "bulletpoints-c92cb",
+  storageBucket: "bulletpoints-c92cb.firebasestorage.app",
+  messagingSenderId: "648243282636",
+  appId: "1:648243282636:web:0a78fa4dd5e46491a93869"
 };
 
-// Fallback to avoid crash if config is missing during review
-const app = initializeApp(Object.keys(firebaseConfig).length > 0 ? firebaseConfig : {
-   apiKey: "demo-key",
-   projectId: "demo-project"
-});
 
-export const db = getFirestore(app);
+
+
+let db: Firestore | null = null;
+
+// Check if keys have been replaced before initializing
+if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "PASTE_YOUR_API_KEY_HERE") {
+  try {
+    const app = initializeApp(firebaseConfig);
+    db = getFirestore(app);
+    console.log("Firebase initialized successfully");
+  } catch (error) {
+    console.error("Firebase initialization failed:", error);
+  }
+} else {
+  console.warn("MinFlow: Firebase config is missing or using placeholders. Falling back to local storage.");
+}
+
+export { db };

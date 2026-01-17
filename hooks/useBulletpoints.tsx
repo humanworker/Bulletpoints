@@ -294,6 +294,8 @@ const historyReducer = (state: HistoryState, action: Action): HistoryState => {
   }
 };
 
+const LOCAL_STORAGE_KEY = 'minflow-local-data';
+
 export const useBulletpoints = () => {
   const [loading, setLoading] = useState(true);
   const isInitialLoad = useRef(true);
@@ -309,9 +311,28 @@ export const useBulletpoints = () => {
 
   const { present: state } = historyState;
 
-  // Firebase Load Effect
+  // Load Data Effect
   useEffect(() => {
     const loadData = async () => {
+      // 1. Fallback to Local Storage if Firebase is not configured
+      if (!db) {
+        const localData = localStorage.getItem(LOCAL_STORAGE_KEY);
+        if (localData) {
+          try {
+            dispatch({ type: 'LOAD_STATE', state: JSON.parse(localData) });
+          } catch (e) {
+            console.error('Failed to parse local data', e);
+            dispatch({ type: 'LOAD_STATE', state: getDefaultState() });
+          }
+        } else {
+          dispatch({ type: 'LOAD_STATE', state: getDefaultState() });
+        }
+        setLoading(false);
+        isInitialLoad.current = false;
+        return;
+      }
+
+      // 2. Firebase Load
       try {
         const docId = getUserDocId();
         const docRef = doc(db, 'minflow-data', docId);
@@ -328,6 +349,8 @@ export const useBulletpoints = () => {
         }
       } catch (error) {
         console.error("Error loading data from Firebase:", error);
+        // Fallback to local storage on error? For now just log it.
+        // It's possible the user hasn't created the database yet.
       } finally {
         setLoading(false);
         // Small delay to prevent the save effect from firing immediately after load
@@ -340,20 +363,26 @@ export const useBulletpoints = () => {
     loadData();
   }, []);
 
-  // Firebase Save Effect (Debounced)
+  // Save Effect (Debounced)
   useEffect(() => {
     if (loading || isInitialLoad.current) return;
 
-    const saveToFirebase = async () => {
-      try {
-        const docId = getUserDocId();
-        await setDoc(doc(db, 'minflow-data', docId), state);
-      } catch (error) {
-        console.error("Error saving to Firebase:", error);
+    const save = async () => {
+      // 1. Local Storage Save (always save to local as backup/fallback)
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(state));
+
+      // 2. Firebase Save
+      if (db) {
+        try {
+          const docId = getUserDocId();
+          await setDoc(doc(db, 'minflow-data', docId), state);
+        } catch (error) {
+          console.error("Error saving to Firebase:", error);
+        }
       }
     };
 
-    const timeoutId = setTimeout(saveToFirebase, 1000);
+    const timeoutId = setTimeout(save, 1000);
     return () => clearTimeout(timeoutId);
   }, [state, loading]);
 
