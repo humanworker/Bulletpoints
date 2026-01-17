@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useLayoutEffect } from 'react';
+import React, { useRef, useEffect, useState, useLayoutEffect, useCallback } from 'react';
 import { Item, ItemMap, DropPosition } from '../types';
 
 interface BulletNodeProps {
@@ -37,24 +37,44 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
 
   const isSelected = selectedIds.has(id);
 
+  const adjustHeight = useCallback(() => {
+    if (inputRef.current) {
+      inputRef.current.style.height = 'auto';
+      inputRef.current.style.height = `${inputRef.current.scrollHeight}px`;
+    }
+  }, []);
+
   // Focus management
   useEffect(() => {
     if (focusedId === id && inputRef.current) {
       inputRef.current.focus({ preventScroll: true });
       adjustHeight();
     }
-  }, [focusedId, id]);
-
-  const adjustHeight = () => {
-    if (inputRef.current) {
-      inputRef.current.style.height = 'auto';
-      inputRef.current.style.height = `${inputRef.current.scrollHeight}px`;
-    }
-  };
+  }, [focusedId, id, adjustHeight]);
 
   useLayoutEffect(() => {
     adjustHeight();
-  }, [item.text]);
+  }, [item.text, adjustHeight]);
+
+  // Adjust height when width changes (fixes initial load wrapping issues)
+  useEffect(() => {
+    if (!inputRef.current) return;
+    
+    let prevWidth = 0;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const width = entry.contentRect.width;
+        if (width !== prevWidth) {
+          prevWidth = width;
+          adjustHeight();
+        }
+      }
+    });
+
+    observer.observe(inputRef.current);
+    
+    return () => observer.disconnect();
+  }, [adjustHeight]);
 
   if (!item) return null;
 
