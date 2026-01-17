@@ -1,7 +1,8 @@
+
 import { useReducer, useEffect, useCallback, useState, useRef } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { ItemMap, WorkflowyState, Action, DropPosition } from '../types';
+import { ItemMap, WorkflowyState, Action, DropPosition, SaveStatus } from '../types';
 import { generateId, getDefaultState, findParentId, isAncestor, getUserDocId } from '../utils';
 
 // Internal history state wrapper
@@ -298,6 +299,7 @@ const LOCAL_STORAGE_KEY = 'minflow-local-data';
 
 export const useBulletpoints = () => {
   const [loading, setLoading] = useState(true);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
   const isInitialLoad = useRef(true);
 
   const [historyState, dispatch] = useReducer(historyReducer, null, () => {
@@ -367,6 +369,8 @@ export const useBulletpoints = () => {
   useEffect(() => {
     if (loading || isInitialLoad.current) return;
 
+    setSaveStatus('saving');
+
     const save = async () => {
       // 1. Local Storage Save (always save to local as backup/fallback)
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(state));
@@ -376,9 +380,13 @@ export const useBulletpoints = () => {
         try {
           const docId = getUserDocId();
           await setDoc(doc(db, 'minflow-data', docId), state);
+          setSaveStatus('saved');
         } catch (error) {
           console.error("Error saving to Firebase:", error);
+          setSaveStatus('error');
         }
+      } else {
+        setSaveStatus('saved'); // Local storage only is still "saved"
       }
     };
 
@@ -428,6 +436,7 @@ export const useBulletpoints = () => {
 
   return {
     loading,
+    saveStatus,
     state,
     items: state.items,
     addItem,

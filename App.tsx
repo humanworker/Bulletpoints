@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useBulletpoints } from './hooks/useBulletpoints';
 import { BulletNode } from './components/BulletNode';
@@ -7,6 +8,7 @@ import { INITIAL_ROOT_ID, getVisibleFlatList, generateId } from './utils';
 const App: React.FC = () => {
   const { 
     loading,
+    saveStatus,
     state, 
     items, 
     addItem, 
@@ -191,9 +193,15 @@ const App: React.FC = () => {
 
   return (
     <div 
-        className="max-w-3xl mx-auto px-8 py-12 h-full flex flex-col"
+        className="max-w-3xl mx-auto px-8 py-12 h-full flex flex-col relative"
         onClick={handleBackgroundClick}
     >
+      <div className="absolute top-4 right-8 text-xs font-mono">
+        {saveStatus === 'saving' && <span className="text-yellow-600">Saving...</span>}
+        {saveStatus === 'saved' && <span className="text-green-600 opacity-50">Saved</span>}
+        {saveStatus === 'error' && <span className="text-red-600 font-bold">Error Saving (Check Console)</span>}
+      </div>
+
       <Breadcrumbs 
         items={items} 
         currentRootId={currentRootId} 
