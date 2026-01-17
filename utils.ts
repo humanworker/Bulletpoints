@@ -6,17 +6,19 @@ export const generateId = (): string => {
 
 export const INITIAL_ROOT_ID = 'root';
 
-export const getInitialState = (): WorkflowyState => {
-  const saved = localStorage.getItem('minflow-data');
-  if (saved) {
-    try {
-      return JSON.parse(saved);
-    } catch (e) {
-      console.error('Failed to parse saved state', e);
-    }
+// Get the user's persistent Document ID for Firestore
+export const getUserDocId = (): string => {
+  const STORAGE_KEY = 'minflow-doc-id';
+  let docId = localStorage.getItem(STORAGE_KEY);
+  if (!docId) {
+    docId = generateId();
+    localStorage.setItem(STORAGE_KEY, docId);
   }
+  return docId;
+};
 
-  // Default initial state
+// Default seed state for new users
+export const getDefaultState = (): WorkflowyState => {
   const firstChildId = generateId();
   return {
     items: {
@@ -29,7 +31,7 @@ export const getInitialState = (): WorkflowyState => {
       },
       [firstChildId]: {
         id: firstChildId,
-        text: 'Welcome to MinFlow! Click the bullet to zoom.',
+        text: 'Welcome to MinFlow! Data is now saved to Firebase.',
         children: [],
         isCompleted: false,
         collapsed: false,
@@ -37,10 +39,6 @@ export const getInitialState = (): WorkflowyState => {
     },
     rootId: INITIAL_ROOT_ID,
   };
-};
-
-export const saveState = (state: WorkflowyState) => {
-  localStorage.setItem('minflow-data', JSON.stringify(state));
 };
 
 // Helper to find parent of a node (expensive in flat map, but reliable)

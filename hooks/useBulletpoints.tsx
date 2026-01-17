@@ -1,6 +1,8 @@
-import { useReducer, useEffect, useCallback } from 'react';
+import { useReducer, useEffect, useCallback, useState, useRef } from 'react';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 import { ItemMap, WorkflowyState, Action, DropPosition } from '../types';
-import { generateId, getInitialState, saveState, findParentId, isAncestor } from '../utils';
+import { generateId, getDefaultState, findParentId, isAncestor, getUserDocId } from '../utils';
 
 // Internal history state wrapper
 interface HistoryState {
@@ -14,6 +16,9 @@ const reducer = (state: WorkflowyState, action: Action): WorkflowyState => {
   const { items } = state;
 
   switch (action.type) {
+    case 'LOAD_STATE':
+      return action.state;
+
     case 'ADD_ITEM': {
       const { afterId, parentId, newId: providedId } = action;
       const newId = providedId || generateId();
@@ -250,6 +255,14 @@ const historyReducer = (state: HistoryState, action: Action): HistoryState => {
         lastAction: undefined
       };
     }
+    case 'LOAD_STATE': {
+      return {
+        past: [],
+        present: action.state,
+        future: [],
+        lastAction: undefined
+      };
+    }
     default: {
       const newPresent = reducer(state.present, action);
       
@@ -282,21 +295,67 @@ const historyReducer = (state: HistoryState, action: Action): HistoryState => {
 };
 
 export const useBulletpoints = () => {
+  const [loading, setLoading] = useState(true);
+  const isInitialLoad = useRef(true);
+
   const [historyState, dispatch] = useReducer(historyReducer, null, () => {
-    const initialState = getInitialState();
+    // Start with a skeleton, content will load async
     return {
       past: [],
-      present: initialState,
+      present: getDefaultState(),
       future: [],
     };
   });
 
   const { present: state } = historyState;
 
-  // Persistence effect
+  // Firebase Load Effect
   useEffect(() => {
-    saveState(state);
-  }, [state]);
+    const loadData = async () => {
+      try {
+        const docId = getUserDocId();
+        const docRef = doc(db, 'minflow-data', docId);
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+          const data = docSnap.data() as WorkflowyState;
+          dispatch({ type: 'LOAD_STATE', state: data });
+        } else {
+          // New user, save default state immediately so it exists next time
+          const defaultState = getDefaultState();
+          await setDoc(docRef, defaultState);
+          dispatch({ type: 'LOAD_STATE', state: defaultState });
+        }
+      } catch (error) {
+        console.error("Error loading data from Firebase:", error);
+      } finally {
+        setLoading(false);
+        // Small delay to prevent the save effect from firing immediately after load
+        setTimeout(() => {
+          isInitialLoad.current = false;
+        }, 500);
+      }
+    };
+
+    loadData();
+  }, []);
+
+  // Firebase Save Effect (Debounced)
+  useEffect(() => {
+    if (loading || isInitialLoad.current) return;
+
+    const saveToFirebase = async () => {
+      try {
+        const docId = getUserDocId();
+        await setDoc(doc(db, 'minflow-data', docId), state);
+      } catch (error) {
+        console.error("Error saving to Firebase:", error);
+      }
+    };
+
+    const timeoutId = setTimeout(saveToFirebase, 1000);
+    return () => clearTimeout(timeoutId);
+  }, [state, loading]);
 
   const addItem = useCallback((parentId: string, afterId: string | null, newId?: string) => {
     dispatch({ type: 'ADD_ITEM', parentId, afterId, newId });
@@ -339,6 +398,7 @@ export const useBulletpoints = () => {
   }, []);
 
   return {
+    loading,
     state,
     items: state.items,
     addItem,

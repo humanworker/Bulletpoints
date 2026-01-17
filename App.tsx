@@ -6,6 +6,7 @@ import { INITIAL_ROOT_ID, getVisibleFlatList, generateId } from './utils';
 
 const App: React.FC = () => {
   const { 
+    loading,
     state, 
     items, 
     addItem, 
@@ -179,6 +180,14 @@ const App: React.FC = () => {
   const handleBackgroundClick = () => {
     setSelectedIds(new Set());
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-gray-400 text-lg animate-pulse">Loading MinFlow...</div>
+      </div>
+    );
+  }
 
   return (
     <div 
