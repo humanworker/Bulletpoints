@@ -6,15 +6,10 @@ export const generateId = (): string => {
 
 export const INITIAL_ROOT_ID = 'root';
 
-// Get the user's persistent Document ID for Firestore
+// Get the shared Document ID for Firestore
+// Using a static ID ensures all users/browsers engage with the same data
 export const getUserDocId = (): string => {
-  const STORAGE_KEY = 'minflow-doc-id';
-  let docId = localStorage.getItem(STORAGE_KEY);
-  if (!docId) {
-    docId = generateId();
-    localStorage.setItem(STORAGE_KEY, docId);
-  }
-  return docId;
+  return 'minflow-shared-workspace';
 };
 
 // Default seed state for new users
@@ -31,7 +26,7 @@ export const getDefaultState = (): WorkflowyState => {
       },
       [firstChildId]: {
         id: firstChildId,
-        text: 'Welcome to MinFlow! Data is now saved to Firebase.',
+        text: 'Welcome to MinFlow! Data is now shared across all devices/browsers.',
         children: [],
         isCompleted: false,
         collapsed: false,
