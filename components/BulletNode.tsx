@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect, useState, useLayoutEffect, useCallback } from 'react';
 import { Item, ItemMap, DropPosition } from '../types';
 
@@ -224,7 +225,8 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
     <div className="relative">
       <div 
         ref={nodeRef}
-        className={`flex items-start py-1 group transition-colors duration-100 relative ${isSelected ? 'bg-blue-50' : ''}`}
+        data-node-id={id}
+        className={`bullet-node-wrapper flex items-start py-1 group transition-colors duration-100 relative ${isSelected ? 'bg-blue-50' : ''}`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}

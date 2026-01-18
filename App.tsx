@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useBulletpoints } from './hooks/useBulletpoints';
 import { BulletNode } from './components/BulletNode';
 import { Breadcrumbs } from './components/Breadcrumbs';
@@ -31,6 +31,12 @@ const App: React.FC = () => {
   // Selection State
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
+
+  // Marquee Selection State
+  const [selectionRect, setSelectionRect] = useState<{ x: number, y: number, width: number, height: number } | null>(null);
+  const selectionStartRef = useRef<{ x: number, y: number } | null>(null);
+  const isSelectingRef = useRef(false);
+  const initialSelectionRef = useRef<Set<string>>(new Set());
 
   // Global Keyboard Shortcuts (Undo/Redo)
   useEffect(() => {
@@ -94,15 +100,10 @@ const App: React.FC = () => {
 
     setSelectedIds(newSelected);
     setLastSelectedId(id);
-    
-    // If we select via bullet click, we might want to blur text focus?
-    // Or keep focus? Keeping focus is fine.
   };
 
   const handleKeyDown = (e: React.KeyboardEvent, id: string, parentId: string) => {
     // Clear selection on most keys unless Shift is held?
-    // Actually, typing should probably clear selection if selection is elsewhere?
-    // For now, let's just clear selection on basic nav if not selecting
     if (!e.shiftKey && !e.metaKey && !e.ctrlKey && selectedIds.size > 0 && e.key.startsWith('Arrow')) {
         setSelectedIds(new Set());
     }
@@ -187,9 +188,69 @@ const App: React.FC = () => {
     }
   }, [items, currentRootId]);
 
-  // Click background to clear selection
-  const handleBackgroundClick = () => {
-    setSelectedIds(new Set());
+  // --- Marquee Selection Handlers ---
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    // Don't start selection if clicking on interactive elements
+    if (target.closest('textarea') || target.closest('.cursor-move') || target.closest('button') || target.closest('a')) {
+      return;
+    }
+
+    isSelectingRef.current = true;
+    selectionStartRef.current = { x: e.clientX, y: e.clientY };
+    setSelectionRect({ x: e.clientX, y: e.clientY, width: 0, height: 0 });
+
+    if (e.shiftKey || e.metaKey || e.ctrlKey) {
+        initialSelectionRef.current = new Set(selectedIds);
+    } else {
+        initialSelectionRef.current = new Set();
+        setSelectedIds(new Set());
+    }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isSelectingRef.current || !selectionStartRef.current) return;
+
+    const currentX = e.clientX;
+    const currentY = e.clientY;
+    const startX = selectionStartRef.current.x;
+    const startY = selectionStartRef.current.y;
+
+    const x = Math.min(currentX, startX);
+    const y = Math.min(currentY, startY);
+    const width = Math.abs(currentX - startX);
+    const height = Math.abs(currentY - startY);
+
+    setSelectionRect({ x, y, width, height });
+
+    // Performance optimization: only run collision logic if we've moved a bit
+    if (width < 2 && height < 2) return;
+
+    const selectionBox = { left: x, right: x + width, top: y, bottom: y + height };
+    const nodes = document.querySelectorAll('.bullet-node-wrapper');
+    const newSelected = new Set(initialSelectionRef.current);
+
+    nodes.forEach((node) => {
+      const rect = node.getBoundingClientRect();
+      if (
+        rect.left < selectionBox.right &&
+        rect.right > selectionBox.left &&
+        rect.top < selectionBox.bottom &&
+        rect.bottom > selectionBox.top
+      ) {
+        const id = node.getAttribute('data-node-id');
+        if (id) newSelected.add(id);
+      }
+    });
+
+    setSelectedIds(newSelected);
+  };
+
+  const handleMouseUp = () => {
+    isSelectingRef.current = false;
+    setSelectionRect(null);
+    selectionStartRef.current = null;
   };
 
   if (loading) {
@@ -202,9 +263,25 @@ const App: React.FC = () => {
 
   return (
     <div 
-        className="max-w-3xl mx-auto px-8 py-12 h-full flex flex-col relative"
-        onClick={handleBackgroundClick}
+        className="max-w-3xl mx-auto px-8 py-12 h-full flex flex-col relative select-none"
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
     >
+      {/* Selection Marquee */}
+      {selectionRect && (
+        <div 
+          className="fixed border border-blue-400 bg-blue-200 bg-opacity-20 pointer-events-none z-50"
+          style={{
+            left: selectionRect.x,
+            top: selectionRect.y,
+            width: selectionRect.width,
+            height: selectionRect.height
+          }}
+        />
+      )}
+
       <div className="absolute top-4 right-8 text-xs font-mono">
         {saveStatus === 'saving' && <span className="text-yellow-600">Saving...</span>}
         {saveStatus === 'saved' && <span className="text-green-600 opacity-50">Saved</span>}
@@ -223,7 +300,7 @@ const App: React.FC = () => {
           <div className="">
              {currentRootId !== INITIAL_ROOT_ID && (
                <h1 className="text-3xl font-bold mb-6 text-gray-900 outline-none"
-                   onClick={(e) => { e.stopPropagation(); setFocusedId(currentRootId); }}
+                   onClick={(e) => { e.stopPropagation(); setFocusedId(currentRootId); setSelectedIds(new Set()); }}
                >
                  {rootItem.text}
                </h1>
@@ -236,6 +313,7 @@ const App: React.FC = () => {
                       const newId = generateId();
                       addItem(currentRootId, null, newId); 
                       setFocusedId(newId);
+                      setSelectedIds(new Set());
                     }}>
                  Empty list. Press Enter to add an item.
                </div>
@@ -249,7 +327,10 @@ const App: React.FC = () => {
                 parentId={currentRootId}
                 focusedId={focusedId}
                 selectedIds={selectedIds}
-                setFocusedId={setFocusedId}
+                setFocusedId={(id) => {
+                    setFocusedId(id);
+                    if (id) setSelectedIds(new Set());
+                }}
                 onKeyDown={handleKeyDown}
                 onUpdateText={updateText}
                 onZoom={handleZoom}
@@ -263,6 +344,7 @@ const App: React.FC = () => {
       </div>
       
       <div className="fixed bottom-4 right-4 text-xs text-gray-400 pointer-events-none text-right">
+        <p>Click & Drag background to select multiple</p>
         <p>Shift+Click bullet to range select</p>
         <p>Cmd/Ctrl+Click bullet to toggle select</p>
         <p>Alt+Click bullet to collapse/expand</p>
