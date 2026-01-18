@@ -123,8 +123,17 @@ const App: React.FC = () => {
       }
       
       // Regular Enter to add item
+      const item = items[id];
       const newId = generateId();
-      addItem(parentId, id, newId);
+      
+      // If the item has children and is expanded, add the new item as the first child
+      if (item && item.children.length > 0 && !item.collapsed) {
+        addItem(id, null, newId);
+      } else {
+        // Otherwise add as the next sibling
+        addItem(parentId, id, newId);
+      }
+
       setFocusedId(newId);
       setSelectedIds(new Set());
       
