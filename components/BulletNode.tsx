@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect, useState, useLayoutEffect, useCallback } from 'react';
 import { Item, ItemMap, DropPosition } from '../types';
 import { linkifyHtml } from '../utils';
@@ -18,6 +19,7 @@ interface BulletNodeProps {
   onMoveItems: (dragIds: string[], targetId: string, position: DropPosition) => void;
   onSelect: (id: string, shiftKey: boolean, metaKey: boolean, altKey: boolean) => void;
   onMultiLinePaste: (id: string, parentId: string, text: string, prefix: string, suffix: string) => void;
+  onChangeFontSize: (id: string, size: 'small' | 'medium' | 'large') => void;
 }
 
 // Helper to set cursor at specific character offset within a contentEditable element
@@ -69,6 +71,7 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
   onMoveItems,
   onSelect,
   onMultiLinePaste,
+  onChangeFontSize,
 }) => {
   const item = items[id];
   const nodeRef = useRef<HTMLDivElement>(null);
@@ -200,6 +203,22 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
         if (e.key === 'u') {
             e.preventDefault();
             applyFormat('underline');
+            return;
+        }
+        // Font Size Shortcuts
+        if (e.key === '1') {
+            e.preventDefault();
+            onChangeFontSize(id, 'large');
+            return;
+        }
+        if (e.key === '2') {
+            e.preventDefault();
+            onChangeFontSize(id, 'medium');
+            return;
+        }
+        if (e.key === '3') {
+            e.preventDefault();
+            onChangeFontSize(id, 'small');
             return;
         }
     }
@@ -336,6 +355,12 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
     setDragOverPosition(null);
   };
 
+  const sizeConfig = {
+    'small': { text: 'text-base leading-6', bulletMargin: 'mt-0' },
+    'medium': { text: 'text-3xl leading-9', bulletMargin: 'mt-1.5' },
+    'large': { text: 'text-5xl leading-none', bulletMargin: 'mt-3' },
+  }[item.fontSize || 'small'];
+
   return (
     <div className="relative">
       <div 
@@ -351,7 +376,7 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
         {dragOverPosition === 'inside' && <div className="drop-indicator absolute -bottom-0.5 left-8 right-0 h-1 bg-blue-500 rounded-sm z-30 pointer-events-none" />}
 
         <div 
-          className="relative flex-shrink-0 w-6 h-6 flex items-center justify-center -ml-2 mr-1 cursor-move group/bullet"
+          className={`relative flex-shrink-0 w-6 h-6 flex items-center justify-center -ml-2 mr-1 cursor-move group/bullet ${sizeConfig.bulletMargin}`}
           draggable
           onDragStart={handleDragStart}
         >
@@ -373,7 +398,7 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
           onKeyDown={handleKeyDownWrapper}
           onPaste={handlePaste}
           onFocus={() => setFocusedId(id)}
-          className="flex-grow min-w-0 outline-none text-gray-800 text-base leading-tight font-medium py-[2px] break-words"
+          className={`flex-grow min-w-0 outline-none text-gray-800 font-medium py-[2px] break-words ${sizeConfig.text}`}
           style={{ minHeight: '24px' }}
         />
       </div>
@@ -398,6 +423,7 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
               onMoveItems={onMoveItems}
               onSelect={onSelect}
               onMultiLinePaste={onMultiLinePaste}
+              onChangeFontSize={onChangeFontSize}
             />
           ))}
         </div>

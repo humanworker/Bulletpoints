@@ -2,7 +2,7 @@
 import { useReducer, useEffect, useCallback, useState, useRef } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { ItemMap, WorkflowyState, Action, DropPosition, SaveStatus } from '../types';
+import { ItemMap, WorkflowyState, Action, DropPosition, SaveStatus, Item } from '../types';
 import { generateId, getDefaultState, findParentId, isAncestor, getUserDocId } from '../utils';
 
 // Internal history state wrapper
@@ -28,12 +28,13 @@ const reducer = (state: WorkflowyState, action: Action): WorkflowyState => {
       if (!parent) return state;
 
       const newItems = { ...items };
-      const newItem = {
+      const newItem: Item = {
         id: newId,
         text: '',
         children: [],
         isCompleted: false,
         collapsed: false,
+        fontSize: 'small',
       };
 
       newItems[newId] = newItem;
@@ -275,6 +276,18 @@ const reducer = (state: WorkflowyState, action: Action): WorkflowyState => {
       return { ...state, items: newItems };
     }
 
+    case 'CHANGE_FONT_SIZE': {
+      const { id, size } = action;
+      if (!items[id]) return state;
+      return {
+        ...state,
+        items: {
+          ...items,
+          [id]: { ...items[id], fontSize: size },
+        },
+      };
+    }
+
     default:
       return state;
   }
@@ -478,6 +491,10 @@ export const useBulletpoints = () => {
     dispatch({ type: 'MOVE_ITEMS', dragIds, targetId, position });
   }, []);
 
+  const changeFontSize = useCallback((id: string, size: 'small' | 'medium' | 'large') => {
+    dispatch({ type: 'CHANGE_FONT_SIZE', id, size });
+  }, []);
+
   const undo = useCallback(() => {
     dispatch({ type: 'UNDO' });
   }, []);
@@ -500,6 +517,7 @@ export const useBulletpoints = () => {
     toggleCollapse,
     moveItem,
     moveItems,
+    changeFontSize,
     undo,
     redo,
   };

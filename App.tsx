@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useBulletpoints } from './hooks/useBulletpoints';
 import { BulletNode } from './components/BulletNode';
@@ -18,6 +19,7 @@ const App: React.FC = () => {
     outdent, 
     toggleCollapse, 
     moveItems,
+    changeFontSize,
     undo,
     redo
   } = useBulletpoints();
@@ -482,6 +484,7 @@ const App: React.FC = () => {
                 onMoveItems={moveItems}
                 onSelect={handleSelect}
                 onMultiLinePaste={handleMultiLinePaste}
+                onChangeFontSize={changeFontSize}
               />
             ))}
           </div>
@@ -561,6 +564,7 @@ const App: React.FC = () => {
         <p>Drag bullet point to move items</p>
         <p>Tab to indent, Shift+Tab to outdent</p>
         <p>Cmd+B/I/U to format text</p>
+        <p>Cmd+1/2/3 to change text size</p>
       </div>
     </div>
   );

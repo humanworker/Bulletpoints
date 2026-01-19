@@ -5,6 +5,7 @@ export interface Item {
   children: string[];
   isCompleted: boolean;
   collapsed: boolean;
+  fontSize?: 'small' | 'medium' | 'large';
 }
 
 export interface ItemMap {
@@ -31,5 +32,6 @@ export type Action =
   | { type: 'MOVE'; dragId: string; targetId: string; position: DropPosition }
   | { type: 'MOVE_ITEMS'; dragIds: string[]; targetId: string; position: DropPosition }
   | { type: 'LOAD_STATE'; state: WorkflowyState }
+  | { type: 'CHANGE_FONT_SIZE'; id: string; size: 'small' | 'medium' | 'large' }
   | { type: 'UNDO' }
   | { type: 'REDO' };
