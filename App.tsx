@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useBulletpoints } from './hooks/useBulletpoints';
 import { BulletNode } from './components/BulletNode';
@@ -341,7 +340,7 @@ const App: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="flex items-center justify-center h-screen bg-gray-50">
         <div className="text-gray-400 text-lg animate-pulse">Loading MinFlow...</div>
       </div>
     );
@@ -349,7 +348,7 @@ const App: React.FC = () => {
 
   return (
     <div 
-        className="w-full h-full bg-gray-50 flex flex-col relative overflow-hidden select-none"
+        className="min-h-screen bg-gray-50 flex flex-col relative select-none"
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
@@ -368,80 +367,83 @@ const App: React.FC = () => {
         />
       )}
 
-      {/* Main Content Container */}
-      <div className="max-w-3xl mx-auto w-full h-full flex flex-col relative px-8 py-12">
-          
-          <div className="absolute top-4 right-8 text-xs font-mono">
-            {saveStatus === 'saving' && <span className="text-yellow-600">Saving...</span>}
-            {saveStatus === 'saved' && <span className="text-green-600 opacity-50">Saved</span>}
-            {saveStatus === 'error' && <span className="text-red-600 font-bold">Error Saving</span>}
-          </div>
+      {/* Fixed Header */}
+      <div className="fixed top-0 left-0 right-0 z-40 bg-gray-50/95 backdrop-blur-sm border-b border-gray-200/50 transition-all duration-200">
+        <div className="max-w-3xl mx-auto w-full px-4 sm:px-8 pt-6 pb-2 relative">
+            <div className="absolute top-4 right-4 sm:right-8 text-xs font-mono pointer-events-none">
+                {saveStatus === 'saving' && <span className="text-yellow-600">Saving...</span>}
+                {saveStatus === 'saved' && <span className="text-green-600 opacity-50">Saved</span>}
+                {saveStatus === 'error' && <span className="text-red-600 font-bold">Error Saving</span>}
+            </div>
 
-          <Breadcrumbs 
-            items={items} 
-            currentRootId={currentRootId} 
-            rootId={INITIAL_ROOT_ID} 
-            onNavigate={handleZoom} 
-          />
+            <Breadcrumbs 
+                items={items} 
+                currentRootId={currentRootId} 
+                rootId={INITIAL_ROOT_ID} 
+                onNavigate={handleZoom} 
+            />
+        </div>
+      </div>
 
-          <div className="flex-1 overflow-y-auto pb-20 pl-4"
-               onMouseDown={(e) => {
-                 // Ensure clicks in the empty area of the list start selection
-                 if (e.target === e.currentTarget) handleMouseDown(e);
-               }}
-          >
-            {rootItem && (
-              <div className="">
-                {currentRootId !== INITIAL_ROOT_ID && (
-                  <h1 className="text-3xl font-bold mb-6 text-gray-900 outline-none"
-                      onClick={(e) => { e.stopPropagation(); setFocusedId(currentRootId); setSelectedIds(new Set()); }}
-                  >
-                    {rootItem.text}
-                  </h1>
-                )}
+      {/* Main Content Area */}
+      <div className="max-w-3xl mx-auto w-full flex-1 px-4 sm:px-8 pb-32 pt-28"
+           onMouseDown={(e) => {
+             // Ensure clicks in the empty area of the list start selection
+             if (e.target === e.currentTarget) handleMouseDown(e);
+           }}
+      >
+        {rootItem && (
+          <div className="pl-1">
+            {currentRootId !== INITIAL_ROOT_ID && (
+              <h1 className="text-3xl font-bold mb-6 text-gray-900 outline-none"
+                  onClick={(e) => { e.stopPropagation(); setFocusedId(currentRootId); setSelectedIds(new Set()); }}
+              >
+                {rootItem.text}
+              </h1>
+            )}
 
-                {rootItem.children.length === 0 && (
-                  <div className="text-gray-400 italic mt-4 cursor-text" 
-                        onClick={(e) => { 
-                          e.stopPropagation(); 
-                          const newId = generateId();
-                          addItem(currentRootId, null, newId); 
-                          setFocusedId(newId);
-                          setSelectedIds(new Set());
-                        }}>
-                    Empty list. Press Enter to add an item.
-                  </div>
-                )}
-
-                {rootItem.children.map((childId) => (
-                  <BulletNode
-                    key={childId}
-                    id={childId}
-                    items={items}
-                    parentId={currentRootId}
-                    focusedId={focusedId}
-                    focusOffset={focusOffset}
-                    selectedIds={selectedIds}
-                    setFocusedId={setFocusedId}
-                    onKeyDown={handleKeyDown}
-                    onUpdateText={updateText}
-                    onZoom={handleZoom}
-                    onToggleCollapse={toggleCollapse}
-                    onMoveItems={moveItems}
-                    onSelect={handleSelect}
-                    onMultiLinePaste={handleMultiLinePaste}
-                  />
-                ))}
+            {rootItem.children.length === 0 && (
+              <div className="text-gray-400 italic mt-4 cursor-text" 
+                    onClick={(e) => { 
+                      e.stopPropagation(); 
+                      const newId = generateId();
+                      addItem(currentRootId, null, newId); 
+                      setFocusedId(newId);
+                      setSelectedIds(new Set());
+                    }}>
+                Empty list. Press Enter to add an item.
               </div>
             )}
+
+            {rootItem.children.map((childId) => (
+              <BulletNode
+                key={childId}
+                id={childId}
+                items={items}
+                parentId={currentRootId}
+                focusedId={focusedId}
+                focusOffset={focusOffset}
+                selectedIds={selectedIds}
+                setFocusedId={setFocusedId}
+                onKeyDown={handleKeyDown}
+                onUpdateText={updateText}
+                onZoom={handleZoom}
+                onToggleCollapse={toggleCollapse}
+                onMoveItems={moveItems}
+                onSelect={handleSelect}
+                onMultiLinePaste={handleMultiLinePaste}
+              />
+            ))}
           </div>
-          
-          <div className="fixed bottom-4 right-4 text-xs text-gray-400 pointer-events-none text-right">
-            <p>Click & Drag background to select items</p>
-            <p>Cmd/Ctrl+Click bullet to collapse/expand</p>
-            <p>Drag bullet point to move items</p>
-            <p>Tab to indent, Shift+Tab to outdent</p>
-          </div>
+        )}
+      </div>
+      
+      {/* Help / Footer - Hidden on Mobile */}
+      <div className="fixed bottom-4 right-4 text-xs text-gray-400 pointer-events-none text-right hidden md:block">
+        <p>Click & Drag background to select items</p>
+        <p>Cmd/Ctrl+Click bullet to collapse/expand</p>
+        <p>Drag bullet point to move items</p>
+        <p>Tab to indent, Shift+Tab to outdent</p>
       </div>
     </div>
   );
