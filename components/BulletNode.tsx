@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState, useLayoutEffect, useCallback } from 'react';
 import { Item, ItemMap, DropPosition } from '../types';
+import { linkifyHtml } from '../utils';
 
 interface BulletNodeProps {
   id: string;
@@ -72,6 +73,7 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
   const item = items[id];
   const nodeRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const restoreCaretRef = useRef<number | null>(null);
   const [dragOverPosition, setDragOverPosition] = useState<DropPosition | null>(null);
 
   const isSelected = selectedIds.has(id);
@@ -87,12 +89,18 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
     }
   }, [isFocused, focusOffset]);
 
-  // Sync content if changed externally
+  // Sync content if changed externally and restore caret if needed
   useLayoutEffect(() => {
     if (nodeRef.current && nodeRef.current.innerHTML !== item.text) {
       nodeRef.current.innerHTML = item.text;
+      
+      // If we are focused and have a pending caret restoration (from auto-linking), restore it
+      if (isFocused && restoreCaretRef.current !== null) {
+        setCaretPosition(nodeRef.current, restoreCaretRef.current);
+        restoreCaretRef.current = null;
+      }
     }
-  }, [item.text]);
+  }, [item.text, isFocused]);
 
   if (!item) return null;
 
@@ -233,7 +241,28 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
   };
 
   const handleInput = (e: React.FormEvent<HTMLDivElement>) => {
-    onUpdateText(id, e.currentTarget.innerHTML);
+    const rawHtml = e.currentTarget.innerHTML;
+    // Auto-linkify logic
+    const linkedHtml = linkifyHtml(rawHtml);
+    
+    if (linkedHtml !== rawHtml) {
+      // If we changed the HTML (added a link), we need to save the caret position
+      // because React will update the DOM via innerHTML, resetting the cursor.
+      restoreCaretRef.current = getCaretCharacterOffsetWithin(nodeRef.current!);
+      onUpdateText(id, linkedHtml);
+    } else {
+      onUpdateText(id, rawHtml);
+    }
+  };
+
+  const handleContentClick = (e: React.MouseEvent) => {
+    // Allow opening links with Cmd/Ctrl + Click
+    const target = e.target as HTMLElement;
+    if (target.tagName === 'A') {
+      if (e.metaKey || e.ctrlKey) {
+        window.open((target as HTMLAnchorElement).href, '_blank');
+      }
+    }
   };
 
   // --- Drag & Drop Handlers ---
@@ -340,6 +369,7 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
           contentEditable
           suppressContentEditableWarning
           onInput={handleInput}
+          onClick={handleContentClick}
           onKeyDown={handleKeyDownWrapper}
           onPaste={handlePaste}
           onFocus={() => setFocusedId(id)}

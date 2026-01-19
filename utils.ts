@@ -94,3 +94,73 @@ export const stripHtml = (html: string): string => {
   tmp.innerHTML = html;
   return tmp.textContent || '';
 };
+
+export const linkifyHtml = (html: string): string => {
+  // Create a temporary container to parse HTML
+  const div = document.createElement('div');
+  div.innerHTML = html;
+  
+  const walker = document.createTreeWalker(div, NodeFilter.SHOW_TEXT, null);
+  let node;
+  const nodesToReplace: { node: Node, text: string }[] = [];
+  
+  // First pass: identify text nodes containing URLs
+  while(node = walker.nextNode()) {
+    // Skip if already inside an anchor tag
+    if (node.parentElement?.tagName === 'A') continue;
+    
+    const text = node.nodeValue || '';
+    // Regex matches http://, https://, or www.
+    if (/((https?:\/\/|www\.)[^\s]+)/.test(text)) {
+        nodesToReplace.push({ node, text });
+    }
+  }
+  
+  if (nodesToReplace.length === 0) return html;
+  
+  let changed = false;
+  
+  // Second pass: replace identified nodes
+  nodesToReplace.forEach(({ node, text }) => {
+     const fragment = document.createDocumentFragment();
+     let lastIdx = 0;
+     const urlRegex = /((?:https?:\/\/|www\.)[^\s]+)/g;
+     let match;
+     let localChange = false;
+     
+     while ((match = urlRegex.exec(text)) !== null) {
+        localChange = true;
+        
+        // Append text before URL
+        if (match.index > lastIdx) {
+            fragment.appendChild(document.createTextNode(text.substring(lastIdx, match.index)));
+        }
+        
+        // Create anchor tag
+        const url = match[0];
+        const a = document.createElement('a');
+        const href = url.startsWith('www.') ? `http://${url}` : url;
+        a.href = href;
+        a.textContent = url;
+        a.className = "text-blue-500 underline hover:text-blue-600 cursor-pointer";
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        a.title = "Cmd+Click to open";
+        
+        fragment.appendChild(a);
+        
+        lastIdx = match.index + url.length;
+     }
+     
+     if (localChange) {
+         // Append remaining text
+         if (lastIdx < text.length) {
+             fragment.appendChild(document.createTextNode(text.substring(lastIdx)));
+         }
+         node.parentNode?.replaceChild(fragment, node);
+         changed = true;
+     }
+  });
+  
+  return changed ? div.innerHTML : html;
+};
