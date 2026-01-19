@@ -1,5 +1,6 @@
 import React from 'react';
 import { ItemMap, Item } from '../types';
+import { stripHtml } from '../utils';
 
 interface BreadcrumbsProps {
   items: ItemMap;
@@ -57,7 +58,7 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
               item.id === currentRootId ? 'font-bold text-gray-900' : 'cursor-pointer'
             }`}
           >
-            {item.id === rootId ? 'Home' : item.text || 'Untitled'}
+            {item.id === rootId ? 'Home' : stripHtml(item.text) || 'Untitled'}
           </button>
         </React.Fragment>
       ))}
