@@ -26,6 +26,7 @@ export type Action =
   | { type: 'INDENT'; id: string; parentId: string }
   | { type: 'OUTDENT'; id: string; parentId: string }
   | { type: 'DELETE'; id: string; parentId: string }
+  | { type: 'MERGE_UP'; id: string; parentId: string; previousItemId: string }
   | { type: 'TOGGLE_COLLAPSE'; id: string }
   | { type: 'MOVE'; dragId: string; targetId: string; position: DropPosition }
   | { type: 'MOVE_ITEMS'; dragIds: string[]; targetId: string; position: DropPosition }

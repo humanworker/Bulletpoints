@@ -93,6 +93,54 @@ const reducer = (state: WorkflowyState, action: Action): WorkflowyState => {
       return { ...state, items: newItems };
     }
 
+    case 'MERGE_UP': {
+      const { id, parentId, previousItemId } = action;
+      const item = items[id];
+      const prevItem = items[previousItemId];
+      const parent = items[parentId];
+
+      if (!item || !prevItem || !parent) return state;
+
+      const newItems = { ...items };
+      
+      // 1. Calculate new text for previous item
+      const newPrevText = prevItem.text + item.text;
+
+      if (parentId === previousItemId) {
+         // Case: Merging child into parent (e.g. B into A)
+         // Replace B with B's children in A's children list
+         const childIndex = parent.children.indexOf(id);
+         const newChildren = [...parent.children];
+         newChildren.splice(childIndex, 1, ...item.children);
+         
+         newItems[parentId] = {
+           ...parent,
+           text: newPrevText,
+           children: newChildren
+         };
+      } else {
+         // Case: Merging into sibling or cousin (e.g. B into A, where A is above B)
+         // 1. Remove from old parent
+         newItems[parentId] = {
+           ...parent,
+           children: parent.children.filter(c => c !== id)
+         };
+
+         // 2. Append children and text to target (previous item)
+         newItems[previousItemId] = {
+            ...prevItem,
+            text: newPrevText,
+            children: [...prevItem.children, ...item.children],
+            collapsed: false // Ensure expanded so moved children are visible
+         };
+      }
+      
+      // 3. Delete current item
+      delete newItems[id];
+      
+      return { ...state, items: newItems };
+    }
+
     case 'INDENT': {
       const { id, parentId } = action;
       const parent = items[parentId];
@@ -405,6 +453,10 @@ export const useBulletpoints = () => {
   const deleteItem = useCallback((id: string, parentId: string) => {
     dispatch({ type: 'DELETE', id, parentId });
   }, []);
+  
+  const mergeUp = useCallback((id: string, parentId: string, previousItemId: string) => {
+    dispatch({ type: 'MERGE_UP', id, parentId, previousItemId });
+  }, []);
 
   const indent = useCallback((id: string, parentId: string) => {
     dispatch({ type: 'INDENT', id, parentId });
@@ -442,6 +494,7 @@ export const useBulletpoints = () => {
     addItem,
     updateText,
     deleteItem,
+    mergeUp,
     indent,
     outdent,
     toggleCollapse,

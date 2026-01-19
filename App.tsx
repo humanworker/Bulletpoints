@@ -13,7 +13,8 @@ const App: React.FC = () => {
     items, 
     addItem, 
     updateText, 
-    deleteItem, 
+    deleteItem,
+    mergeUp,
     indent, 
     outdent, 
     toggleCollapse, 
@@ -188,6 +189,32 @@ const App: React.FC = () => {
         indent(id, parentId);
       }
     } else if (e.key === 'Backspace') {
+      // Logic for merging items or deleting
+      const isCollapsed = window.getSelection()?.isCollapsed;
+      
+      // Case 1: Cursor at start, Previous Item exists -> Merge
+      if (selectionStart === 0 && isCollapsed) {
+          const currentIndex = visibleItems.indexOf(id);
+          if (currentIndex > 0) {
+             const prevItemId = visibleItems[currentIndex - 1];
+             const prevItem = items[prevItemId];
+             if (prevItem) {
+                 e.preventDefault();
+                 const prevTextLength = prevItem.text.length;
+                 
+                 mergeUp(id, parentId, prevItemId);
+                 
+                 setFocusedId(prevItemId);
+                 setFocusOffset(prevTextLength);
+                 
+                 // Clear selection just in case
+                 setSelectedIds(new Set());
+                 return;
+             }
+          }
+      }
+      
+      // Case 2: Item empty (and presumably at top of list or some other edge case not caught above) -> Delete
       const item = items[id];
       if (item && item.text === '' && item.children.length === 0) {
         e.preventDefault();
