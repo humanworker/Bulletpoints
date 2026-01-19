@@ -26,8 +26,14 @@ const App: React.FC = () => {
   const [currentRootId, setCurrentRootId] = useState<string>(INITIAL_ROOT_ID);
   
   // Focus State
-  const [focusedId, setFocusedId] = useState<string | null>(null);
+  const [focusedId, setFocusedIdState] = useState<string | null>(null);
+  const [focusOffset, setFocusOffset] = useState<number | null>(null);
   
+  const setFocusedId = (id: string | null) => {
+    setFocusedIdState(id);
+    setFocusOffset(null);
+  };
+
   // Selection State
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   
@@ -123,7 +129,7 @@ const App: React.FC = () => {
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent, id: string, parentId: string) => {
+  const handleKeyDown = (e: React.KeyboardEvent, id: string, parentId: string, selectionStart?: number | null, currentText?: string) => {
     // Clear selection on navigation if not holding modifiers
     if (!e.shiftKey && !e.metaKey && !e.ctrlKey && selectedIds.size > 0 && e.key.startsWith('Arrow')) {
         setSelectedIds(new Set());
@@ -144,17 +150,34 @@ const App: React.FC = () => {
         return;
       }
       
-      // Regular Enter to add item
+      // Split on Enter Logic
       const item = items[id];
-      const newId = generateId();
+      const text = currentText !== undefined ? currentText : (item?.text || '');
+      const start = selectionStart !== undefined && selectionStart !== null ? selectionStart : text.length;
+
+      const textBefore = text.slice(0, start);
+      const textAfter = text.slice(start);
+
+      // 1. Update text of current item if needed
+      if (textBefore !== text) {
+        updateText(id, textBefore);
+      }
       
+      // 2. Create new item
+      const newId = generateId();
       if (item && item.children.length > 0 && !item.collapsed) {
         addItem(id, null, newId);
       } else {
         addItem(parentId, id, newId);
       }
+      
+      // 3. Update text of new item if needed
+      if (textAfter) {
+        updateText(newId, textAfter);
+      }
 
-      setFocusedId(newId);
+      setFocusedIdState(newId);
+      setFocusOffset(0); // Set cursor to start of new item
       setSelectedIds(new Set());
       
     } else if (e.key === 'Tab') {
@@ -370,11 +393,9 @@ const App: React.FC = () => {
                     items={items}
                     parentId={currentRootId}
                     focusedId={focusedId}
+                    focusOffset={focusOffset}
                     selectedIds={selectedIds}
-                    setFocusedId={(id) => {
-                        setFocusedId(id);
-                        if (id) setSelectedIds(new Set());
-                    }}
+                    setFocusedId={setFocusedId}
                     onKeyDown={handleKeyDown}
                     onUpdateText={updateText}
                     onZoom={handleZoom}

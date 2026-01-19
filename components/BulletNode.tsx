@@ -7,9 +7,10 @@ interface BulletNodeProps {
   items: ItemMap;
   parentId: string;
   focusedId: string | null;
+  focusOffset?: number | null;
   selectedIds: Set<string>;
   setFocusedId: (id: string | null) => void;
-  onKeyDown: (e: React.KeyboardEvent, id: string, parentId: string) => void;
+  onKeyDown: (e: React.KeyboardEvent, id: string, parentId: string, selectionStart?: number | null, text?: string) => void;
   onUpdateText: (id: string, text: string) => void;
   onZoom: (id: string) => void;
   onToggleCollapse: (id: string) => void;
@@ -23,6 +24,7 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
   items,
   parentId,
   focusedId,
+  focusOffset,
   selectedIds,
   setFocusedId,
   onKeyDown,
@@ -51,9 +53,12 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
   useEffect(() => {
     if (focusedId === id && inputRef.current) {
       inputRef.current.focus({ preventScroll: true });
+      if (typeof focusOffset === 'number') {
+        inputRef.current.setSelectionRange(focusOffset, focusOffset);
+      }
       adjustHeight();
     }
-  }, [focusedId, id, adjustHeight]);
+  }, [focusedId, id, adjustHeight, focusOffset]);
 
   useLayoutEffect(() => {
     adjustHeight();
@@ -133,7 +138,9 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
         }
       }
     }
-    onKeyDown(e, id, parentId);
+    const selectionStart = inputRef.current?.selectionStart ?? null;
+    const value = inputRef.current?.value;
+    onKeyDown(e, id, parentId, selectionStart, value);
   };
 
   // --- Drag & Drop Handlers ---
@@ -262,6 +269,7 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
               items={items}
               parentId={id}
               focusedId={focusedId}
+              focusOffset={focusOffset}
               selectedIds={selectedIds}
               setFocusedId={setFocusedId}
               onKeyDown={onKeyDown}
