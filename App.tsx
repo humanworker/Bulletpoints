@@ -169,11 +169,17 @@ const App: React.FC = () => {
       // Handle Cmd/Ctrl + Enter to delete
       if (e.metaKey || e.ctrlKey) {
          const currentIndex = visibleItems.indexOf(id);
-         if (currentIndex > 0) {
+         
+         // Try to move focus to the item below
+         if (currentIndex !== -1 && currentIndex < visibleItems.length - 1) {
+           setFocusedId(visibleItems[currentIndex + 1]);
+         } else if (currentIndex > 0) {
+           // Fallback to item above if no item below
            setFocusedId(visibleItems[currentIndex - 1]);
          } else if (parentId !== currentRootId) {
             setFocusedId(parentId);
          }
+         
         deleteItem(id, parentId);
         return;
       }
@@ -224,12 +230,19 @@ const App: React.FC = () => {
       const plainText = stripHtml(item?.text || '');
       if (item && plainText === '' && item.children.length === 0) {
         e.preventDefault();
+        
         const currentIndex = visibleItems.indexOf(id);
-        if (currentIndex > 0) {
-          setFocusedId(visibleItems[currentIndex - 1]);
+        
+        // Try to move focus to the item below
+        if (currentIndex !== -1 && currentIndex < visibleItems.length - 1) {
+           setFocusedId(visibleItems[currentIndex + 1]);
+        } else if (currentIndex > 0) {
+           // Fallback to item above if no item below
+           setFocusedId(visibleItems[currentIndex - 1]);
         } else if (parentId !== currentRootId) {
              setFocusedId(parentId);
         }
+        
         deleteItem(id, parentId);
       }
     } else if (e.key === 'ArrowUp') {
@@ -297,6 +310,13 @@ const App: React.FC = () => {
     const parentId = findParentId(items, focusedId);
 
     if (action === 'delete' && parentId) {
+        // Handle focus before deleting
+        const currentIndex = visibleItems.indexOf(focusedId);
+        if (currentIndex !== -1 && currentIndex < visibleItems.length - 1) {
+           setFocusedId(visibleItems[currentIndex + 1]);
+        } else if (currentIndex > 0) {
+           setFocusedId(visibleItems[currentIndex - 1]);
+        }
         deleteItem(focusedId, parentId);
     } else if (action === 'indent' && parentId && mobileActionStates.canIndent) {
         indent(focusedId, parentId);
