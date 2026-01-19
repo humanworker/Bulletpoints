@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect, useState, useLayoutEffect, useCallback } from 'react';
 import { Item, ItemMap, DropPosition } from '../types';
 
@@ -11,6 +10,7 @@ interface BulletNodeProps {
   selectedIds: Set<string>;
   setFocusedId: (id: string | null) => void;
   onKeyDown: (e: React.KeyboardEvent, id: string, parentId: string, selectionStart?: number | null, text?: string) => void;
+  onSplit: (id: string, htmlBefore: string, htmlAfter: string) => void;
   onUpdateText: (id: string, text: string) => void;
   onZoom: (id: string) => void;
   onToggleCollapse: (id: string) => void;
@@ -18,6 +18,39 @@ interface BulletNodeProps {
   onSelect: (id: string, shiftKey: boolean, metaKey: boolean, altKey: boolean) => void;
   onMultiLinePaste: (id: string, parentId: string, text: string, prefix: string, suffix: string) => void;
 }
+
+// Helper to set cursor at specific character offset within a contentEditable element
+const setCaretPosition = (root: HTMLElement, offset: number) => {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+  let node = walker.nextNode();
+  let currentOffset = 0;
+  let found = false;
+
+  const selection = window.getSelection();
+  const range = document.createRange();
+
+  while (node) {
+    const length = node.nodeValue?.length || 0;
+    if (currentOffset + length >= offset) {
+      range.setStart(node, offset - currentOffset);
+      range.collapse(true);
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+      found = true;
+      break;
+    }
+    currentOffset += length;
+    node = walker.nextNode();
+  }
+
+  // If offset is greater than content length, move to end
+  if (!found) {
+    range.selectNodeContents(root);
+    range.collapse(false);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+  }
+};
 
 export const BulletNode: React.FC<BulletNodeProps> = ({
   id,
@@ -28,6 +61,7 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
   selectedIds,
   setFocusedId,
   onKeyDown,
+  onSplit,
   onUpdateText,
   onZoom,
   onToggleCollapse,
@@ -36,52 +70,33 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
   onMultiLinePaste,
 }) => {
   const item = items[id];
-  const inputRef = useRef<HTMLTextAreaElement>(null);
   const nodeRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [dragOverPosition, setDragOverPosition] = useState<DropPosition | null>(null);
 
   const isSelected = selectedIds.has(id);
-
-  const adjustHeight = useCallback(() => {
-    if (inputRef.current) {
-      inputRef.current.style.height = 'auto';
-      inputRef.current.style.height = `${inputRef.current.scrollHeight}px`;
-    }
-  }, []);
+  const isFocused = focusedId === id;
 
   // Focus management
   useEffect(() => {
-    if (focusedId === id && inputRef.current) {
-      inputRef.current.focus({ preventScroll: true });
+    if (isFocused && nodeRef.current) {
+      nodeRef.current.focus();
       if (typeof focusOffset === 'number') {
-        inputRef.current.setSelectionRange(focusOffset, focusOffset);
+        setCaretPosition(nodeRef.current, focusOffset);
       }
-      adjustHeight();
     }
-  }, [focusedId, id, adjustHeight, focusOffset]);
+  }, [isFocused, focusOffset]);
 
-  useLayoutEffect(() => {
-    adjustHeight();
-  }, [item.text, adjustHeight]);
-
-  // Adjust height when width changes
+  // Sync content if changed externally
   useEffect(() => {
-    if (!inputRef.current) return;
-    
-    let prevWidth = 0;
-    const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const width = entry.contentRect.width;
-        if (width !== prevWidth) {
-          prevWidth = width;
-          adjustHeight();
-        }
+    if (nodeRef.current && nodeRef.current.innerHTML !== item.text) {
+      // Only update if not focused to avoid cursor jumping, 
+      // or if focused but the content is significantly different (e.g. undo/redo)
+      if (!isFocused || document.activeElement !== nodeRef.current) {
+          nodeRef.current.innerHTML = item.text;
       }
-    });
-
-    observer.observe(inputRef.current);
-    return () => observer.disconnect();
-  }, [adjustHeight]);
+    }
+  }, [item.text, isFocused]);
 
   if (!item) return null;
 
@@ -89,58 +104,140 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
 
   const handleBulletClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    
-    // Cmd/Ctrl + Click = Toggle Collapse
     if (e.metaKey || e.ctrlKey) {
         onToggleCollapse(id);
         return;
     }
-    
-    // Default action: Zoom
     onZoom(id);
   };
 
-  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+  const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
     const text = e.clipboardData.getData('text');
     if (text.includes('\n')) {
         e.preventDefault();
         
-        const input = inputRef.current;
-        if (!input) return;
+        const selection = window.getSelection();
+        if (!selection || selection.rangeCount === 0) return;
         
-        const selectionStart = input.selectionStart;
-        const selectionEnd = input.selectionEnd;
-        const currentText = input.value;
+        // This is a simplified "split at cursor" logic for paste, 
+        // similar to existing textarea logic but using textContent approximation for now
+        // or passing the full text to the handler.
         
-        const prefix = currentText.substring(0, selectionStart);
-        const suffix = currentText.substring(selectionEnd);
+        // For robustness with HTML content, we try to preserve the HTML of the current node
+        // but simple multiline paste usually implies plain text insertion for new items.
+        
+        // 1. Get HTML before cursor
+        const range = selection.getRangeAt(0);
+        const rangeBefore = document.createRange();
+        rangeBefore.setStart(nodeRef.current!, 0);
+        rangeBefore.setEnd(range.startContainer, range.startOffset);
+        
+        // This is tricky with HTML. Let's fallback to the handler which likely does text splitting.
+        // Or better, let's just use the text content for the split to keep it reliable for the clone.
+        const prefix = nodeRef.current?.innerText.substring(0, getCaretCharacterOffsetWithin(nodeRef.current!)) || '';
+        const suffix = nodeRef.current?.innerText.substring(getCaretCharacterOffsetWithin(nodeRef.current!)) || '';
         
         onMultiLinePaste(id, parentId, text, prefix, suffix);
     }
+    // Else let default paste happen (preserves rich text if copied from HTML, or inserts text)
+  };
+
+  // Helper to get caret text offset
+  function getCaretCharacterOffsetWithin(element: HTMLElement) {
+    let caretOffset = 0;
+    const doc = element.ownerDocument || document;
+    const win = doc.defaultView || window;
+    const sel = win?.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+      const preCaretRange = range.cloneRange();
+      preCaretRange.selectNodeContents(element);
+      preCaretRange.setEnd(range.endContainer, range.endOffset);
+      caretOffset = preCaretRange.toString().length;
+    }
+    return caretOffset;
+  }
+
+  const applyFormat = (command: string) => {
+    if (!nodeRef.current) return;
+    
+    // Check if we need to select all (if collapsed)
+    const sel = window.getSelection();
+    let madeSelection = false;
+    
+    if (sel && sel.isCollapsed && nodeRef.current.contains(sel.anchorNode)) {
+        document.execCommand('selectAll', false, undefined);
+        madeSelection = true;
+    }
+
+    document.execCommand(command, false, undefined);
+    
+    // Trigger update immediately
+    onUpdateText(id, nodeRef.current.innerHTML);
+    
+    // If we selected all, maybe collapse to end to allow typing?
+    // Prompt says: "the whole text ... will have the style applied".
+    // Usually leaving it selected is fine, or user clicks away.
   };
 
   const handleKeyDownWrapper = (e: React.KeyboardEvent) => {
-    if (inputRef.current) {
-      if (e.key === 'Enter' && e.shiftKey) {
-        e.stopPropagation();
-        return;
-      }
-      if (e.key === 'ArrowUp') {
-        if (inputRef.current.selectionStart > 0) {
-          e.stopPropagation();
-          return;
+    // Rich Text Shortcuts
+    if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey) {
+        if (e.key === 'b') {
+            e.preventDefault();
+            applyFormat('bold');
+            return;
         }
-      }
-      if (e.key === 'ArrowDown') {
-        if (inputRef.current.selectionStart < inputRef.current.value.length) {
-          e.stopPropagation();
-          return;
+        if (e.key === 'i') {
+            e.preventDefault();
+            applyFormat('italic');
+            return;
         }
-      }
+        if (e.key === 'u') {
+            e.preventDefault();
+            applyFormat('underline');
+            return;
+        }
     }
-    const selectionStart = inputRef.current?.selectionStart ?? null;
-    const value = inputRef.current?.value;
-    onKeyDown(e, id, parentId, selectionStart, value);
+
+    // Split on Enter
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        
+        if (!nodeRef.current) return;
+
+        const sel = window.getSelection();
+        if (!sel || sel.rangeCount === 0) return;
+        
+        const range = sel.getRangeAt(0);
+        
+        // Create the "After" part
+        const rangeAfter = range.cloneRange();
+        rangeAfter.setEndAfter(nodeRef.current.lastChild || nodeRef.current);
+        
+        // Extract contents (removes from DOM) - this effectively splits the DOM node
+        const fragmentAfter = rangeAfter.extractContents();
+        
+        // The remaining content in nodeRef is the "Before" part
+        const htmlBefore = nodeRef.current.innerHTML;
+        
+        // Convert fragment to HTML string
+        const div = document.createElement('div');
+        div.appendChild(fragmentAfter);
+        const htmlAfter = div.innerHTML;
+
+        onSplit(id, htmlBefore, htmlAfter);
+        return;
+    }
+    
+    // For navigation/deletion, we need text offset
+    const selectionStart = nodeRef.current ? getCaretCharacterOffsetWithin(nodeRef.current) : 0;
+    
+    onKeyDown(e, id, parentId, selectionStart, nodeRef.current?.innerHTML);
+  };
+
+  const handleInput = (e: React.FormEvent<HTMLDivElement>) => {
+    onUpdateText(id, e.currentTarget.innerHTML);
   };
 
   // --- Drag & Drop Handlers ---
@@ -154,7 +251,7 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
     e.dataTransfer.setData('application/bulletpoints-ids', JSON.stringify(itemsToDrag));
     e.dataTransfer.effectAllowed = 'move';
 
-    // Drag Ghost Setup
+    // Drag Ghost
     if (itemsToDrag.length > 1) {
         const ghost = document.createElement('div');
         ghost.textContent = `${itemsToDrag.length} items`;
@@ -165,15 +262,12 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
         e.dataTransfer.setDragImage(ghost, 0, 0);
         setTimeout(() => document.body.removeChild(ghost), 0);
     } else {
-        if (nodeRef.current) {
-            const ghost = nodeRef.current.cloneNode(true) as HTMLElement;
+        if (containerRef.current) {
+            const ghost = containerRef.current.cloneNode(true) as HTMLElement;
             ghost.style.position = 'absolute';
             ghost.style.top = '-1000px';
-            ghost.style.left = '-1000px';
-            ghost.style.width = `${Math.min(nodeRef.current.offsetWidth, 600)}px`;
-            ghost.style.backgroundColor = 'transparent'; 
-            ghost.style.pointerEvents = 'none';
-            if (!isSelected) ghost.classList.remove('bg-blue-100'); // Check match with render class
+            ghost.style.width = `${Math.min(containerRef.current.offsetWidth, 600)}px`;
+            ghost.classList.remove('bg-blue-100');
             const indicators = ghost.querySelectorAll('.drop-indicator');
             indicators.forEach(el => el.remove());
             document.body.appendChild(ghost);
@@ -186,8 +280,8 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!nodeRef.current) return;
-    const rect = nodeRef.current.getBoundingClientRect();
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
     const y = e.clientY - rect.top;
     const height = rect.height;
     if (y < height * 0.25) setDragOverPosition('before');
@@ -197,7 +291,7 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
 
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
-    if (nodeRef.current && !nodeRef.current.contains(e.relatedTarget as Node)) {
+    if (containerRef.current && !containerRef.current.contains(e.relatedTarget as Node)) {
       setDragOverPosition(null);
     }
   };
@@ -220,9 +314,8 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
   return (
     <div className="relative">
       <div 
-        ref={nodeRef}
+        ref={containerRef}
         data-node-id={id}
-        // Added pr-4 to ensure there is clickable empty space on the right for marquee selection
         className={`bullet-node-wrapper flex items-start py-1 pr-4 group transition-colors duration-100 relative rounded-sm ${isSelected ? 'bg-blue-100' : ''}`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -246,17 +339,17 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
           <div className={`z-10 rounded-full transition-all duration-200 pointer-events-none ${item.collapsed && hasChildren ? 'w-2 h-2 bg-gray-500 ring-2 ring-gray-300' : 'w-1.5 h-1.5 bg-gray-400 group-hover/bullet:bg-gray-600'}`}></div>
         </div>
 
-        <textarea
-          ref={inputRef}
-          value={item.text}
-          onChange={(e) => onUpdateText(id, e.target.value)}
+        <div
+          ref={nodeRef}
+          contentEditable
+          suppressContentEditableWarning
+          onInput={handleInput}
           onKeyDown={handleKeyDownWrapper}
           onPaste={handlePaste}
           onFocus={() => setFocusedId(id)}
-          rows={1}
-          className="flex-grow bg-transparent border-none outline-none text-gray-800 text-base leading-tight placeholder-gray-300 font-medium resize-none overflow-hidden block py-[2px]"
+          className="flex-grow min-w-0 outline-none text-gray-800 text-base leading-tight font-medium py-[2px] break-words"
           style={{ minHeight: '24px' }}
-          placeholder=""
+          dangerouslySetInnerHTML={{ __html: item.text }}
         />
       </div>
 
@@ -273,6 +366,7 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
               selectedIds={selectedIds}
               setFocusedId={setFocusedId}
               onKeyDown={onKeyDown}
+              onSplit={onSplit}
               onUpdateText={onUpdateText}
               onZoom={onZoom}
               onToggleCollapse={onToggleCollapse}

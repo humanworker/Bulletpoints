@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useBulletpoints } from './hooks/useBulletpoints';
 import { BulletNode } from './components/BulletNode';
 import { Breadcrumbs } from './components/Breadcrumbs';
-import { INITIAL_ROOT_ID, getVisibleFlatList, generateId } from './utils';
+import { INITIAL_ROOT_ID, getVisibleFlatList, generateId, stripHtml } from './utils';
 
 const App: React.FC = () => {
   const { 
@@ -129,6 +129,32 @@ const App: React.FC = () => {
     }
   };
 
+  const handleSplit = (id: string, htmlBefore: string, htmlAfter: string) => {
+      const item = items[id];
+      if (!item) return;
+      
+      const parentId = Object.keys(items).find(key => items[key].children.includes(id));
+      if (!parentId) return;
+
+      // 1. Update text of current item
+      updateText(id, htmlBefore);
+      
+      // 2. Create new item
+      const newId = generateId();
+      if (item && item.children.length > 0 && !item.collapsed) {
+        addItem(id, null, newId);
+      } else {
+        addItem(parentId, id, newId);
+      }
+      
+      // 3. Update text of new item
+      updateText(newId, htmlAfter);
+
+      setFocusedIdState(newId);
+      setFocusOffset(0); // Set cursor to start of new item
+      setSelectedIds(new Set());
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent, id: string, parentId: string, selectionStart?: number | null, currentText?: string) => {
     // Clear selection on navigation if not holding modifiers
     if (!e.shiftKey && !e.metaKey && !e.ctrlKey && selectedIds.size > 0 && e.key.startsWith('Arrow')) {
@@ -150,35 +176,10 @@ const App: React.FC = () => {
         return;
       }
       
-      // Split on Enter Logic
-      const item = items[id];
-      const text = currentText !== undefined ? currentText : (item?.text || '');
-      const start = selectionStart !== undefined && selectionStart !== null ? selectionStart : text.length;
-
-      const textBefore = text.slice(0, start);
-      const textAfter = text.slice(start);
-
-      // 1. Update text of current item if needed
-      if (textBefore !== text) {
-        updateText(id, textBefore);
-      }
-      
-      // 2. Create new item
-      const newId = generateId();
-      if (item && item.children.length > 0 && !item.collapsed) {
-        addItem(id, null, newId);
-      } else {
-        addItem(parentId, id, newId);
-      }
-      
-      // 3. Update text of new item if needed
-      if (textAfter) {
-        updateText(newId, textAfter);
-      }
-
-      setFocusedIdState(newId);
-      setFocusOffset(0); // Set cursor to start of new item
-      setSelectedIds(new Set());
+      // Standard split is now handled by onSplit which intercepts Enter in BulletNode
+      // This block is fallback or if onSplit is not used for some reason.
+      // But since BulletNode uses contentEditable and intercepts Enter, this code might be dead for Enter key
+      // unless onSplit logic fails.
       
     } else if (e.key === 'Tab') {
       e.preventDefault();
@@ -199,7 +200,9 @@ const App: React.FC = () => {
              const prevItem = items[prevItemId];
              if (prevItem) {
                  e.preventDefault();
-                 const prevTextLength = prevItem.text.length;
+                 
+                 // We need the plain text length for the cursor position
+                 const prevTextLength = stripHtml(prevItem.text).length;
                  
                  mergeUp(id, parentId, prevItemId);
                  
@@ -215,7 +218,9 @@ const App: React.FC = () => {
       
       // Case 2: Item empty (and presumably at top of list or some other edge case not caught above) -> Delete
       const item = items[id];
-      if (item && item.text === '' && item.children.length === 0) {
+      // Check if text is empty or just has empty tags like <br> or <div></div>
+      const plainText = stripHtml(item?.text || '');
+      if (item && plainText === '' && item.children.length === 0) {
         e.preventDefault();
         const currentIndex = visibleItems.indexOf(id);
         if (currentIndex > 0) {
@@ -263,7 +268,7 @@ const App: React.FC = () => {
     
     // Allow dragging from anywhere EXCEPT interactive elements
     if (
-        target.closest('textarea') || 
+        target.closest('[contenteditable]') || 
         target.closest('.cursor-move') || 
         target.closest('button') || 
         target.closest('a')
@@ -426,6 +431,7 @@ const App: React.FC = () => {
                 selectedIds={selectedIds}
                 setFocusedId={setFocusedId}
                 onKeyDown={handleKeyDown}
+                onSplit={handleSplit}
                 onUpdateText={updateText}
                 onZoom={handleZoom}
                 onToggleCollapse={toggleCollapse}
@@ -444,6 +450,7 @@ const App: React.FC = () => {
         <p>Cmd/Ctrl+Click bullet to collapse/expand</p>
         <p>Drag bullet point to move items</p>
         <p>Tab to indent, Shift+Tab to outdent</p>
+        <p>Cmd+B/I/U to format text</p>
       </div>
     </div>
   );
