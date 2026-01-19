@@ -83,6 +83,46 @@ const App: React.FC = () => {
     }
   };
 
+  const handleMultiLinePaste = (id: string, parentId: string, pastedText: string, prefix: string, suffix: string) => {
+    const lines = pastedText.split(/\r\n|\r|\n/);
+    if (lines.length === 0) return;
+    
+    // Update current item with the first line
+    updateText(id, prefix + lines[0]);
+    
+    // If only one line (no newlines in paste), effectively just normal paste (though handled here)
+    if (lines.length === 1) {
+        // Append suffix if any
+        updateText(id, prefix + lines[0] + suffix);
+        return;
+    }
+
+    // Multiple lines
+    let previousId = id;
+
+    // lines 1..n are new items
+    for (let i = 1; i < lines.length; i++) {
+        const newId = generateId();
+        let lineContent = lines[i];
+        
+        // If it's the last line, append suffix
+        if (i === lines.length - 1) {
+            lineContent += suffix;
+        }
+        
+        // Add new item after previousId
+        addItem(parentId, previousId, newId);
+        updateText(newId, lineContent);
+        
+        previousId = newId;
+        
+        // Focus the last item
+        if (i === lines.length - 1) {
+            setFocusedId(newId);
+        }
+    }
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent, id: string, parentId: string) => {
     // Clear selection on navigation if not holding modifiers
     if (!e.shiftKey && !e.metaKey && !e.ctrlKey && selectedIds.size > 0 && e.key.startsWith('Arrow')) {
@@ -341,6 +381,7 @@ const App: React.FC = () => {
                     onToggleCollapse={toggleCollapse}
                     onMoveItems={moveItems}
                     onSelect={handleSelect}
+                    onMultiLinePaste={handleMultiLinePaste}
                   />
                 ))}
               </div>

@@ -15,6 +15,7 @@ interface BulletNodeProps {
   onToggleCollapse: (id: string) => void;
   onMoveItems: (dragIds: string[], targetId: string, position: DropPosition) => void;
   onSelect: (id: string, shiftKey: boolean, metaKey: boolean, altKey: boolean) => void;
+  onMultiLinePaste: (id: string, parentId: string, text: string, prefix: string, suffix: string) => void;
 }
 
 export const BulletNode: React.FC<BulletNodeProps> = ({
@@ -30,6 +31,7 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
   onToggleCollapse,
   onMoveItems,
   onSelect,
+  onMultiLinePaste,
 }) => {
   const item = items[id];
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -91,6 +93,25 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
     
     // Default action: Zoom
     onZoom(id);
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const text = e.clipboardData.getData('text');
+    if (text.includes('\n')) {
+        e.preventDefault();
+        
+        const input = inputRef.current;
+        if (!input) return;
+        
+        const selectionStart = input.selectionStart;
+        const selectionEnd = input.selectionEnd;
+        const currentText = input.value;
+        
+        const prefix = currentText.substring(0, selectionStart);
+        const suffix = currentText.substring(selectionEnd);
+        
+        onMultiLinePaste(id, parentId, text, prefix, suffix);
+    }
   };
 
   const handleKeyDownWrapper = (e: React.KeyboardEvent) => {
@@ -223,6 +244,7 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
           value={item.text}
           onChange={(e) => onUpdateText(id, e.target.value)}
           onKeyDown={handleKeyDownWrapper}
+          onPaste={handlePaste}
           onFocus={() => setFocusedId(id)}
           rows={1}
           className="flex-grow bg-transparent border-none outline-none text-gray-800 text-base leading-tight placeholder-gray-300 font-medium resize-none overflow-hidden block py-[2px]"
@@ -248,6 +270,7 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
               onToggleCollapse={onToggleCollapse}
               onMoveItems={onMoveItems}
               onSelect={onSelect}
+              onMultiLinePaste={onMultiLinePaste}
             />
           ))}
         </div>
