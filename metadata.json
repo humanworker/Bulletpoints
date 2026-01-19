@@ -1,5 +1,5 @@
 {
-  "name": "MinFlow",
+  "name": "Bulletpoints",
   "description": "A minimalist, recursive list-making tool inspired by Workflowy. Features infinite nesting, zooming, and keyboard-centric navigation.",
   "requestFramePermissions": []
 }

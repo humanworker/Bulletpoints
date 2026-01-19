@@ -343,7 +343,7 @@ const historyReducer = (state: HistoryState, action: Action): HistoryState => {
   }
 };
 
-const LOCAL_STORAGE_KEY = 'minflow-local-data';
+const LOCAL_STORAGE_KEY = 'bulletpoints-local-data';
 
 export const useBulletpoints = () => {
   const [loading, setLoading] = useState(true);
@@ -385,7 +385,7 @@ export const useBulletpoints = () => {
       // 2. Firebase Load
       try {
         const docId = getUserDocId();
-        const docRef = doc(db, 'minflow-data', docId);
+        const docRef = doc(db, 'bulletpoints-data', docId);
         const docSnap = await getDoc(docRef);
 
         if (docSnap.exists()) {
@@ -427,7 +427,7 @@ export const useBulletpoints = () => {
       if (db) {
         try {
           const docId = getUserDocId();
-          await setDoc(doc(db, 'minflow-data', docId), state);
+          await setDoc(doc(db, 'bulletpoints-data', docId), state);
           setSaveStatus('saved');
         } catch (error) {
           console.error("Error saving to Firebase:", error);

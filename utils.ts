@@ -9,7 +9,7 @@ export const INITIAL_ROOT_ID = 'root';
 // Get the shared Document ID for Firestore
 // Using a static ID ensures all users/browsers engage with the same data
 export const getUserDocId = (): string => {
-  return 'minflow-shared-workspace';
+  return 'bulletpoints-shared-workspace';
 };
 
 // Default seed state for new users
@@ -26,7 +26,7 @@ export const getDefaultState = (): WorkflowyState => {
       },
       [firstChildId]: {
         id: firstChildId,
-        text: 'Welcome to MinFlow! Data is now shared across all devices/browsers.',
+        text: 'Welcome to Bulletpoints! Data is now shared across all devices/browsers.',
         children: [],
         isCompleted: false,
         collapsed: false,

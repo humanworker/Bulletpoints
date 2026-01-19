@@ -341,7 +341,7 @@ const App: React.FC = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-50">
-        <div className="text-gray-400 text-lg animate-pulse">Loading MinFlow...</div>
+        <div className="text-gray-400 text-lg animate-pulse">Loading Bulletpoints...</div>
       </div>
     );
   }

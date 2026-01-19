@@ -151,7 +151,7 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
     if (isSelected) {
       itemsToDrag = Array.from(selectedIds);
     }
-    e.dataTransfer.setData('application/minflow-ids', JSON.stringify(itemsToDrag));
+    e.dataTransfer.setData('application/bulletpoints-ids', JSON.stringify(itemsToDrag));
     e.dataTransfer.effectAllowed = 'move';
 
     // Drag Ghost Setup
@@ -205,7 +205,7 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    const dragIdsJson = e.dataTransfer.getData('application/minflow-ids');
+    const dragIdsJson = e.dataTransfer.getData('application/bulletpoints-ids');
     if (dragIdsJson && dragOverPosition) {
       try {
         const dragIds = JSON.parse(dragIdsJson);
