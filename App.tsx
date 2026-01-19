@@ -349,6 +349,7 @@ const App: React.FC = () => {
           
           <div className="fixed bottom-4 right-4 text-xs text-gray-400 pointer-events-none text-right">
             <p>Click & Drag background to select items</p>
+            <p>Cmd/Ctrl+Click bullet to collapse/expand</p>
             <p>Drag bullet point to move items</p>
             <p>Tab to indent, Shift+Tab to outdent</p>
           </div>

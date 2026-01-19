@@ -82,11 +82,13 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
 
   const handleBulletClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    // Simplified select logic: modifier keys toggle/add
-    if (e.shiftKey || e.metaKey || e.ctrlKey) {
-        onSelect(id, e.shiftKey, e.metaKey || e.ctrlKey, e.altKey);
+    
+    // Cmd/Ctrl + Click = Toggle Collapse
+    if (e.metaKey || e.ctrlKey) {
+        onToggleCollapse(id);
         return;
     }
+    
     // Default action: Zoom
     onZoom(id);
   };
@@ -143,7 +145,7 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
             ghost.style.width = `${Math.min(nodeRef.current.offsetWidth, 600)}px`;
             ghost.style.backgroundColor = 'transparent'; 
             ghost.style.pointerEvents = 'none';
-            if (!isSelected) ghost.classList.remove('bg-blue-50');
+            if (!isSelected) ghost.classList.remove('bg-blue-100'); // Check match with render class
             const indicators = ghost.querySelectorAll('.drop-indicator');
             indicators.forEach(el => el.remove());
             document.body.appendChild(ghost);
@@ -210,7 +212,7 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
           <div 
             className="absolute inset-0 rounded-full cursor-pointer z-20 transform scale-150"
             onClick={handleBulletClick}
-            title="Click to zoom. Drag to move."
+            title="Click to zoom. Cmd+Click to collapse. Drag to move."
           ></div>
           <div className="absolute inset-0 rounded-full bg-gray-200 opacity-0 group-hover/bullet:opacity-100 transition-opacity duration-200 transform scale-75 pointer-events-none"></div>
           <div className={`z-10 rounded-full transition-all duration-200 pointer-events-none ${item.collapsed && hasChildren ? 'w-2 h-2 bg-gray-500 ring-2 ring-gray-300' : 'w-1.5 h-1.5 bg-gray-400 group-hover/bullet:bg-gray-600'}`}></div>
@@ -223,8 +225,6 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
           onKeyDown={handleKeyDownWrapper}
           onFocus={() => setFocusedId(id)}
           rows={1}
-          // Changed to w-full but transparent so it doesn't look like a box. 
-          // The parent pr-4 provides the grab area.
           className="flex-grow bg-transparent border-none outline-none text-gray-800 text-base leading-tight placeholder-gray-300 font-medium resize-none overflow-hidden block py-[2px]"
           style={{ minHeight: '24px' }}
           placeholder=""
