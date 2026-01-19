@@ -30,8 +30,7 @@ const App: React.FC = () => {
   
   // Selection State
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
-
+  
   // Marquee Selection State
   const [selectionRect, setSelectionRect] = useState<{ x: number, y: number, width: number, height: number } | null>(null);
   const selectionStartRef = useRef<{ x: number, y: number } | null>(null);
@@ -43,7 +42,7 @@ const App: React.FC = () => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       // Cmd+Z or Ctrl+Z
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
-        e.preventDefault(); // Prevent browser native undo which might conflict with our controlled inputs
+        e.preventDefault(); 
         if (e.shiftKey) {
           redo();
         } else {
@@ -61,49 +60,31 @@ const App: React.FC = () => {
     return getVisibleFlatList(items, currentRootId);
   }, [items, currentRootId]);
 
-  // Selection Handler
+  // Selection Handler (Simplified)
   const handleSelect = (id: string, shiftKey: boolean, metaKey: boolean, altKey: boolean) => {
     if (altKey) {
         toggleCollapse(id);
         return;
     }
 
-    const newSelected = new Set(metaKey ? selectedIds : []);
-    
-    if (shiftKey && (lastSelectedId || focusedId)) {
-        const startId = lastSelectedId || focusedId!;
-        const startIndex = visibleItems.indexOf(startId);
-        const endIndex = visibleItems.indexOf(id);
-        
-        if (startIndex !== -1 && endIndex !== -1) {
-            const start = Math.min(startIndex, endIndex);
-            const end = Math.max(startIndex, endIndex);
-            for (let i = start; i <= end; i++) {
-                newSelected.add(visibleItems[i]);
-            }
+    // Toggle selection with Meta/Ctrl
+    if (metaKey || shiftKey) {
+        const newSelected = new Set(selectedIds);
+        if (newSelected.has(id)) {
+            newSelected.delete(id);
         } else {
             newSelected.add(id);
         }
+        setSelectedIds(newSelected);
     } else {
-        if (metaKey) {
-            if (newSelected.has(id)) {
-                newSelected.delete(id);
-            } else {
-                newSelected.add(id);
-            }
-        } else {
-            // Should not happen via BulletNode calls (we only call if modifier exists)
-            // But if we did allow single click select:
-            newSelected.add(id);
-        }
+        // Single click (without modifiers) usually just focuses, handled by BulletNode focus logic.
+        // But if we want it to select the item explicitly:
+        setSelectedIds(new Set([id]));
     }
-
-    setSelectedIds(newSelected);
-    setLastSelectedId(id);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent, id: string, parentId: string) => {
-    // Clear selection on most keys unless Shift is held?
+    // Clear selection on navigation if not holding modifiers
     if (!e.shiftKey && !e.metaKey && !e.ctrlKey && selectedIds.size > 0 && e.key.startsWith('Arrow')) {
         setSelectedIds(new Set());
     }
@@ -127,11 +108,9 @@ const App: React.FC = () => {
       const item = items[id];
       const newId = generateId();
       
-      // If the item has children and is expanded, add the new item as the first child
       if (item && item.children.length > 0 && !item.collapsed) {
         addItem(id, null, newId);
       } else {
-        // Otherwise add as the next sibling
         addItem(parentId, id, newId);
       }
 
@@ -192,15 +171,29 @@ const App: React.FC = () => {
 
   const handleMouseDown = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
-    // Don't start selection if clicking on interactive elements
-    if (target.closest('textarea') || target.closest('.cursor-move') || target.closest('button') || target.closest('a')) {
+    
+    // Allow dragging from anywhere EXCEPT interactive elements
+    if (
+        target.closest('textarea') || 
+        target.closest('.cursor-move') || 
+        target.closest('button') || 
+        target.closest('a')
+    ) {
       return;
     }
 
+    // Crucial: Prevent default to stop text selection cursor
+    e.preventDefault();
+
     isSelectingRef.current = true;
+    
+    // Clear browser text selection
+    window.getSelection()?.removeAllRanges();
+    
     selectionStartRef.current = { x: e.clientX, y: e.clientY };
     setSelectionRect({ x: e.clientX, y: e.clientY, width: 0, height: 0 });
 
+    // If holding Shift/Meta, keep existing selection initially
     if (e.shiftKey || e.metaKey || e.ctrlKey) {
         initialSelectionRef.current = new Set(selectedIds);
     } else {
@@ -211,6 +204,8 @@ const App: React.FC = () => {
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!isSelectingRef.current || !selectionStartRef.current) return;
+
+    e.preventDefault(); // Prevent text selection while dragging
 
     const currentX = e.clientX;
     const currentY = e.clientY;
@@ -224,7 +219,7 @@ const App: React.FC = () => {
 
     setSelectionRect({ x, y, width, height });
 
-    // Performance optimization: only run collision logic if we've moved a bit
+    // Only select if we have a minimal drag area
     if (width < 2 && height < 2) return;
 
     const selectionBox = { left: x, right: x + width, top: y, bottom: y + height };
@@ -233,6 +228,7 @@ const App: React.FC = () => {
 
     nodes.forEach((node) => {
       const rect = node.getBoundingClientRect();
+      // Check intersection
       if (
         rect.left < selectionBox.right &&
         rect.right > selectionBox.left &&
@@ -263,7 +259,7 @@ const App: React.FC = () => {
 
   return (
     <div 
-        className="max-w-3xl mx-auto px-8 py-12 h-full flex flex-col relative select-none"
+        className="w-full h-full bg-gray-50 flex flex-col relative overflow-hidden select-none"
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
@@ -272,7 +268,7 @@ const App: React.FC = () => {
       {/* Selection Marquee */}
       {selectionRect && (
         <div 
-          className="fixed border border-blue-400 bg-blue-200 bg-opacity-20 pointer-events-none z-50"
+          className="fixed border border-blue-500 bg-blue-400 bg-opacity-20 pointer-events-none z-50"
           style={{
             left: selectionRect.x,
             top: selectionRect.y,
@@ -282,75 +278,80 @@ const App: React.FC = () => {
         />
       )}
 
-      <div className="absolute top-4 right-8 text-xs font-mono">
-        {saveStatus === 'saving' && <span className="text-yellow-600">Saving...</span>}
-        {saveStatus === 'saved' && <span className="text-green-600 opacity-50">Saved</span>}
-        {saveStatus === 'error' && <span className="text-red-600 font-bold">Error Saving (Check Console)</span>}
-      </div>
-
-      <Breadcrumbs 
-        items={items} 
-        currentRootId={currentRootId} 
-        rootId={INITIAL_ROOT_ID} 
-        onNavigate={handleZoom} 
-      />
-
-      <div className="flex-1 overflow-y-auto pb-20 pl-4">
-        {rootItem && (
-          <div className="">
-             {currentRootId !== INITIAL_ROOT_ID && (
-               <h1 className="text-3xl font-bold mb-6 text-gray-900 outline-none"
-                   onClick={(e) => { e.stopPropagation(); setFocusedId(currentRootId); setSelectedIds(new Set()); }}
-               >
-                 {rootItem.text}
-               </h1>
-             )}
-
-             {rootItem.children.length === 0 && (
-               <div className="text-gray-400 italic mt-4 cursor-text" 
-                    onClick={(e) => { 
-                      e.stopPropagation(); 
-                      const newId = generateId();
-                      addItem(currentRootId, null, newId); 
-                      setFocusedId(newId);
-                      setSelectedIds(new Set());
-                    }}>
-                 Empty list. Press Enter to add an item.
-               </div>
-             )}
-
-            {rootItem.children.map((childId) => (
-              <BulletNode
-                key={childId}
-                id={childId}
-                items={items}
-                parentId={currentRootId}
-                focusedId={focusedId}
-                selectedIds={selectedIds}
-                setFocusedId={(id) => {
-                    setFocusedId(id);
-                    if (id) setSelectedIds(new Set());
-                }}
-                onKeyDown={handleKeyDown}
-                onUpdateText={updateText}
-                onZoom={handleZoom}
-                onToggleCollapse={toggleCollapse}
-                onMoveItems={moveItems}
-                onSelect={handleSelect}
-              />
-            ))}
+      {/* Main Content Container */}
+      <div className="max-w-3xl mx-auto w-full h-full flex flex-col relative px-8 py-12">
+          
+          <div className="absolute top-4 right-8 text-xs font-mono">
+            {saveStatus === 'saving' && <span className="text-yellow-600">Saving...</span>}
+            {saveStatus === 'saved' && <span className="text-green-600 opacity-50">Saved</span>}
+            {saveStatus === 'error' && <span className="text-red-600 font-bold">Error Saving</span>}
           </div>
-        )}
-      </div>
-      
-      <div className="fixed bottom-4 right-4 text-xs text-gray-400 pointer-events-none text-right">
-        <p>Click & Drag background to select multiple</p>
-        <p>Shift+Click bullet to range select</p>
-        <p>Cmd/Ctrl+Click bullet to toggle select</p>
-        <p>Alt+Click bullet to collapse/expand</p>
-        <p>Drag multiple selected items to move</p>
-        <p>Cmd/Ctrl+Enter to delete item</p>
-        <p>Cmd/Ctrl+Z to undo, Shift+Cmd/Ctrl+Z to redo</p>
+
+          <Breadcrumbs 
+            items={items} 
+            currentRootId={currentRootId} 
+            rootId={INITIAL_ROOT_ID} 
+            onNavigate={handleZoom} 
+          />
+
+          <div className="flex-1 overflow-y-auto pb-20 pl-4"
+               onMouseDown={(e) => {
+                 // Ensure clicks in the empty area of the list start selection
+                 if (e.target === e.currentTarget) handleMouseDown(e);
+               }}
+          >
+            {rootItem && (
+              <div className="">
+                {currentRootId !== INITIAL_ROOT_ID && (
+                  <h1 className="text-3xl font-bold mb-6 text-gray-900 outline-none"
+                      onClick={(e) => { e.stopPropagation(); setFocusedId(currentRootId); setSelectedIds(new Set()); }}
+                  >
+                    {rootItem.text}
+                  </h1>
+                )}
+
+                {rootItem.children.length === 0 && (
+                  <div className="text-gray-400 italic mt-4 cursor-text" 
+                        onClick={(e) => { 
+                          e.stopPropagation(); 
+                          const newId = generateId();
+                          addItem(currentRootId, null, newId); 
+                          setFocusedId(newId);
+                          setSelectedIds(new Set());
+                        }}>
+                    Empty list. Press Enter to add an item.
+                  </div>
+                )}
+
+                {rootItem.children.map((childId) => (
+                  <BulletNode
+                    key={childId}
+                    id={childId}
+                    items={items}
+                    parentId={currentRootId}
+                    focusedId={focusedId}
+                    selectedIds={selectedIds}
+                    setFocusedId={(id) => {
+                        setFocusedId(id);
+                        if (id) setSelectedIds(new Set());
+                    }}
+                    onKeyDown={handleKeyDown}
+                    onUpdateText={updateText}
+                    onZoom={handleZoom}
+                    onToggleCollapse={toggleCollapse}
+                    onMoveItems={moveItems}
+                    onSelect={handleSelect}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+          
+          <div className="fixed bottom-4 right-4 text-xs text-gray-400 pointer-events-none text-right">
+            <p>Click & Drag background to select items</p>
+            <p>Drag bullet point to move items</p>
+            <p>Tab to indent, Shift+Tab to outdent</p>
+          </div>
       </div>
     </div>
   );
