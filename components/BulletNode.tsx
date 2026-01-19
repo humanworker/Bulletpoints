@@ -88,15 +88,11 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
   }, [isFocused, focusOffset]);
 
   // Sync content if changed externally
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (nodeRef.current && nodeRef.current.innerHTML !== item.text) {
-      // Only update if not focused to avoid cursor jumping, 
-      // or if focused but the content is significantly different (e.g. undo/redo)
-      if (!isFocused || document.activeElement !== nodeRef.current) {
-          nodeRef.current.innerHTML = item.text;
-      }
+      nodeRef.current.innerHTML = item.text;
     }
-  }, [item.text, isFocused]);
+  }, [item.text]);
 
   if (!item) return null;
 
@@ -200,8 +196,8 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
         }
     }
 
-    // Split on Enter
-    if (e.key === 'Enter' && !e.shiftKey) {
+    // Split on Enter (but not Cmd+Enter which deletes)
+    if (e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
         e.preventDefault();
         
         if (!nodeRef.current) return;
@@ -349,7 +345,6 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
           onFocus={() => setFocusedId(id)}
           className="flex-grow min-w-0 outline-none text-gray-800 text-base leading-tight font-medium py-[2px] break-words"
           style={{ minHeight: '24px' }}
-          dangerouslySetInnerHTML={{ __html: item.text }}
         />
       </div>
 
