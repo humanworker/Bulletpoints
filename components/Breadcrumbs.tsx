@@ -9,6 +9,7 @@ interface BreadcrumbsProps {
   rootId: string; // Absolute root
   onNavigate: (id: string) => void;
   onRefresh?: () => void;
+  rootClassName?: string;
 }
 
 export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
@@ -17,6 +18,7 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
   rootId,
   onNavigate,
   onRefresh,
+  rootClassName,
 }) => {
   const path: Item[] = [];
   let curr: string | null = currentRootId;
@@ -51,6 +53,19 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
         const isRoot = index === 0;
         const text = isRoot ? 'Home' : stripHtml(item.text) || 'Untitled';
         
+        let buttonClassName = "transition-colors duration-200 truncate ";
+        if (isRoot) {
+            buttonClassName += "shrink-0 ";
+            if (rootClassName) {
+                buttonClassName += rootClassName;
+            } else {
+                buttonClassName += isLast ? 'font-bold text-gray-900' : 'cursor-pointer text-gray-500 hover:text-gray-700';
+            }
+        } else {
+            buttonClassName += "shrink ";
+            buttonClassName += isLast ? 'font-bold text-gray-900' : 'cursor-pointer text-gray-500 hover:text-gray-700';
+        }
+
         return (
           <React.Fragment key={item.id}>
             {index > 0 && <span className="mx-2 text-gray-300 shrink-0">/</span>}
@@ -73,11 +88,7 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
                 }
               }}
               title={text + (isRoot ? ' (Double-click to refresh)' : '')}
-              className={`hover:text-gray-800 transition-colors duration-200 truncate ${
-                isLast 
-                  ? 'font-bold text-gray-900 shrink' 
-                  : 'cursor-pointer text-gray-500 hover:text-gray-700 shrink'
-              } ${isRoot ? 'shrink-0' : ''}`}
+              className={buttonClassName}
               style={{
                 // Intermediate items get a max-width to ensure they don't crowd out the current item or path structure
                 // The current item (isLast) gets more room but will still truncate if needed

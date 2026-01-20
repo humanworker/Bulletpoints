@@ -372,7 +372,7 @@ export const useBulletpoints = () => {
     };
   });
 
-  const { present: state } = historyState;
+  const { present: state, past, future } = historyState;
 
   // Load Data function (exposed for refresh)
   const refreshData = useCallback(async () => {
@@ -526,6 +526,8 @@ export const useBulletpoints = () => {
     changeFontSize,
     undo,
     redo,
+    canUndo: past.length > 0,
+    canRedo: future.length > 0,
     refreshData,
   };
 };

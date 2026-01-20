@@ -22,6 +22,8 @@ const App: React.FC = () => {
     changeFontSize,
     undo,
     redo,
+    canUndo,
+    canRedo,
     refreshData
   } = useBulletpoints();
   
@@ -45,6 +47,59 @@ const App: React.FC = () => {
   const selectionStartRef = useRef<{ x: number, y: number } | null>(null);
   const isSelectingRef = useRef(false);
   const initialSelectionRef = useRef<Set<string>>(new Set());
+
+  // Sync Status Color Logic
+  const [rootStatusColor, setRootStatusColor] = useState<string>('');
+  const lastSavedTimeRef = useRef<number>(Date.now());
+
+  // Track the last time we were successfully saved
+  useEffect(() => {
+    if (saveStatus === 'saved') {
+      lastSavedTimeRef.current = Date.now();
+    }
+  }, [saveStatus]);
+
+  // Handle color transitions based on saveStatus
+  useEffect(() => {
+    let timeout: NodeJS.Timeout;
+
+    if (saveStatus === 'saved') {
+      // Only flash green if we are coming from a non-empty state (active saving/error)
+      // and not during initial load
+      if (!loading && rootStatusColor !== '') {
+        setRootStatusColor('text-green-600');
+        timeout = setTimeout(() => {
+          setRootStatusColor(''); // Return to default
+        }, 3000);
+      } else {
+        // If we load the app and it's saved, just ensure it's default
+        setRootStatusColor('');
+      }
+    } else if (saveStatus === 'saving') {
+      // Check if we haven't already exceeded the 60s red threshold
+      const elapsed = Date.now() - lastSavedTimeRef.current;
+      if (elapsed < 60000) {
+        setRootStatusColor('text-orange-500');
+      }
+    } else if (saveStatus === 'error') {
+      setRootStatusColor('text-red-600');
+    }
+
+    return () => clearTimeout(timeout);
+  }, [saveStatus, loading]);
+
+  // Watchdog timer for 60s delay rule
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (saveStatus !== 'saved') {
+        const elapsed = Date.now() - lastSavedTimeRef.current;
+        if (elapsed > 60000) {
+          setRootStatusColor('text-red-600');
+        }
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [saveStatus]);
 
   // Global Keyboard Shortcuts (Undo/Redo)
   useEffect(() => {
@@ -442,18 +497,13 @@ const App: React.FC = () => {
       {/* Fixed Header */}
       <div className="fixed top-0 left-0 right-0 z-40 bg-gray-50/95 backdrop-blur-sm border-b border-gray-200/50 transition-all duration-200 pt-[env(safe-area-inset-top)]">
         <div className="max-w-3xl mx-auto w-full px-4 sm:px-8 py-4 relative">
-            <div className="absolute top-4 right-4 sm:right-8 text-xs font-mono pointer-events-none">
-                {saveStatus === 'saving' && <span className="text-yellow-600">Saving...</span>}
-                {saveStatus === 'saved' && <span className="text-green-600 opacity-50">Saved</span>}
-                {saveStatus === 'error' && <span className="text-red-600 font-bold">Error Saving</span>}
-            </div>
-
             <Breadcrumbs 
                 items={items} 
                 currentRootId={currentRootId} 
                 rootId={INITIAL_ROOT_ID} 
                 onNavigate={handleZoom} 
                 onRefresh={refreshData}
+                rootClassName={rootStatusColor}
             />
         </div>
       </div>
@@ -552,7 +602,29 @@ const App: React.FC = () => {
             </svg>
         </button>
 
-        <div className="w-px h-6 bg-gray-800 mx-1"></div>
+        <button 
+            onMouseDown={(e) => { e.preventDefault(); undo(); }}
+            disabled={!canUndo}
+            className={`transition-all ${canUndo ? 'text-white opacity-80 hover:opacity-100 active:scale-90' : 'text-gray-600 cursor-not-allowed opacity-50'}`}
+        >
+            {/* Undo Icon */}
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 7v6h6"/>
+                <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/>
+            </svg>
+        </button>
+
+        <button 
+            onMouseDown={(e) => { e.preventDefault(); redo(); }}
+            disabled={!canRedo}
+            className={`transition-all ${canRedo ? 'text-white opacity-80 hover:opacity-100 active:scale-90' : 'text-gray-600 cursor-not-allowed opacity-50'}`}
+        >
+            {/* Redo Icon */}
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 7v6h-6"/>
+                <path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 3.7"/>
+            </svg>
+        </button>
 
         <button 
             onMouseDown={(e) => { e.preventDefault(); handleMobileAction('expand'); }}
