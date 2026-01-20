@@ -52,6 +52,10 @@ const App: React.FC = () => {
   const [rootStatusColor, setRootStatusColor] = useState<string>('');
   const lastSavedTimeRef = useRef<number>(Date.now());
 
+  // Delete Confirmation Logic
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+  const deleteTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   // Track the last time we were successfully saved
   useEffect(() => {
     if (saveStatus === 'saved') {
@@ -118,6 +122,19 @@ const App: React.FC = () => {
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, [undo, redo]);
+
+  // Reset delete confirmation if focus changes or component unmounts
+  useEffect(() => {
+    setIsConfirmingDelete(false);
+    if (deleteTimeoutRef.current) {
+      clearTimeout(deleteTimeoutRef.current);
+    }
+    return () => {
+      if (deleteTimeoutRef.current) {
+        clearTimeout(deleteTimeoutRef.current);
+      }
+    };
+  }, [focusedId]);
 
   // Calculate visible items for navigation and range selection
   const visibleItems = React.useMemo(() => {
@@ -363,6 +380,37 @@ const App: React.FC = () => {
 
   const handleMobileAction = (action: 'indent' | 'outdent' | 'delete' | 'expand' | 'collapse') => {
     if (!focusedId) return;
+
+    // Handle Delete Confirmation
+    if (action === 'delete') {
+      if (!isConfirmingDelete) {
+        // First tap: Enter confirmation mode
+        setIsConfirmingDelete(true);
+        if (deleteTimeoutRef.current) clearTimeout(deleteTimeoutRef.current);
+        deleteTimeoutRef.current = setTimeout(() => {
+          setIsConfirmingDelete(false);
+          deleteTimeoutRef.current = null;
+        }, 1000);
+        return; // Don't delete yet
+      } else {
+        // Second tap within timeout: Proceed to delete
+        setIsConfirmingDelete(false);
+        if (deleteTimeoutRef.current) {
+          clearTimeout(deleteTimeoutRef.current);
+          deleteTimeoutRef.current = null;
+        }
+      }
+    } else {
+      // Any other action resets the delete confirmation
+      if (isConfirmingDelete) {
+        setIsConfirmingDelete(false);
+        if (deleteTimeoutRef.current) {
+          clearTimeout(deleteTimeoutRef.current);
+          deleteTimeoutRef.current = null;
+        }
+      }
+    }
+
     const parentId = findParentId(items, focusedId);
 
     if (action === 'delete' && parentId) {
@@ -593,7 +641,7 @@ const App: React.FC = () => {
 
         <button 
             onMouseDown={(e) => { e.preventDefault(); handleMobileAction('delete'); }}
-            className="text-white opacity-80 hover:opacity-100 active:scale-90 transition-all"
+            className={`transition-all ${isConfirmingDelete ? 'text-red-600 opacity-100 scale-110' : 'text-white opacity-80 hover:opacity-100 active:scale-90'}`}
         >
             {/* Delete Icon (X) */}
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
