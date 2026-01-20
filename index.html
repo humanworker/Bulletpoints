@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
     <title>Bulletpoints</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -29,6 +29,11 @@
         color: #d1d5db; /* gray-300 */
         cursor: text;
       }
+
+      /* Mobile optimizations */
+      * {
+        -webkit-tap-highlight-color: transparent;
+      }
     </style>
   <script type="importmap">
 {
@@ -40,13 +45,14 @@
     "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
     "firebase/app": "https://esm.sh/firebase@10.8.0/app",
     "firebase/firestore": "https://esm.sh/firebase@10.8.0/firestore",
-    "firebase/": "https://esm.sh/firebase@^12.8.0/"
+    "firebase/": "https://esm.sh/firebase@^12.8.0/",
+    "@capacitor/cli": "https://esm.sh/@capacitor/cli@^8.0.1"
   }
 }
 </script>
 </head>
-  <body class="bg-gray-50 text-gray-900 font-sans antialiased">
-    <div id="root" class="h-full w-full"></div>
+  <body class="bg-gray-50 text-gray-900 font-sans antialiased h-full w-full fixed overflow-hidden">
+    <div id="root" class="h-full w-full overflow-y-auto overscroll-none"></div>
     <script type="module" src="/index.tsx"></script>
   </body>
 </html>

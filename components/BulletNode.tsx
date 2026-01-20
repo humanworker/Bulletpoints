@@ -356,9 +356,21 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
   };
 
   const sizeConfig = {
-    'small': { text: 'text-base leading-6', bulletMargin: 'mt-0' },
-    'medium': { text: 'text-3xl leading-9', bulletMargin: 'mt-1.5' },
-    'large': { text: 'text-5xl leading-none', bulletMargin: 'mt-3' },
+    'small': { 
+      text: 'text-base leading-6', 
+      bulletMargin: 'mt-0',
+      wrapperPadding: 'pt-1' 
+    },
+    'medium': { 
+      text: 'text-2xl leading-8 font-medium', 
+      bulletMargin: 'mt-1', 
+      wrapperPadding: 'pt-4' 
+    },
+    'large': { 
+      text: 'text-3xl leading-9 font-bold', 
+      bulletMargin: 'mt-1.5', 
+      wrapperPadding: 'pt-8' 
+    },
   }[item.fontSize || 'small'];
 
   return (
@@ -366,7 +378,7 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
       <div 
         ref={containerRef}
         data-node-id={id}
-        className={`bullet-node-wrapper flex items-start py-1 pr-4 group transition-colors duration-100 relative rounded-sm ${isSelected ? 'bg-blue-100' : ''}`}
+        className={`bullet-node-wrapper flex items-start pb-1 ${sizeConfig.wrapperPadding} pr-4 group transition-colors duration-100 relative rounded-sm ${isSelected ? 'bg-blue-100' : ''}`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}

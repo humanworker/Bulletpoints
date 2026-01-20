@@ -1,4 +1,5 @@
-import React from 'react';
+
+import React, { useRef } from 'react';
 import { ItemMap, Item } from '../types';
 import { stripHtml } from '../utils';
 
@@ -7,6 +8,7 @@ interface BreadcrumbsProps {
   currentRootId: string;
   rootId: string; // Absolute root
   onNavigate: (id: string) => void;
+  onRefresh?: () => void;
 }
 
 export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
@@ -14,9 +16,11 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
   currentRootId,
   rootId,
   onNavigate,
+  onRefresh,
 }) => {
   const path: Item[] = [];
   let curr: string | null = currentRootId;
+  const lastTapRef = useRef<number>(0);
 
   // Build path backwards from current view to absolute root
   const findParent = (childId: string): string | null => {
@@ -41,7 +45,7 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
   }
 
   return (
-    <nav className="flex items-center text-lg mb-6 text-gray-500 w-full overflow-hidden whitespace-nowrap select-none">
+    <nav className="flex items-center text-lg text-gray-500 w-full overflow-hidden whitespace-nowrap select-none">
       {path.map((item, index) => {
         const isLast = index === path.length - 1;
         const isRoot = index === 0;
@@ -52,7 +56,23 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
             {index > 0 && <span className="mx-2 text-gray-300 shrink-0">/</span>}
             <button
               onClick={() => onNavigate(item.id)}
-              title={text}
+              onDoubleClick={(e) => {
+                if (isRoot && onRefresh) {
+                  e.preventDefault();
+                  onRefresh();
+                }
+              }}
+              onTouchEnd={(e) => {
+                if (isRoot && onRefresh) {
+                  const now = Date.now();
+                  if (now - lastTapRef.current < 300) {
+                    e.preventDefault();
+                    onRefresh();
+                  }
+                  lastTapRef.current = now;
+                }
+              }}
+              title={text + (isRoot ? ' (Double-click to refresh)' : '')}
               className={`hover:text-gray-800 transition-colors duration-200 truncate ${
                 isLast 
                   ? 'font-bold text-gray-900 shrink' 

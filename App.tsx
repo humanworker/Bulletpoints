@@ -21,7 +21,8 @@ const App: React.FC = () => {
     moveItems,
     changeFontSize,
     undo,
-    redo
+    redo,
+    refreshData
   } = useBulletpoints();
   
   // View State
@@ -239,7 +240,7 @@ const App: React.FC = () => {
         } else if (currentIndex > 0) {
            // Fallback to item above if no item below
            setFocusedId(visibleItems[currentIndex - 1]);
-        } else if (parentId !== currentRootId) {
+         } else if (parentId !== currentRootId) {
              setFocusedId(parentId);
         }
         
@@ -439,8 +440,8 @@ const App: React.FC = () => {
       )}
 
       {/* Fixed Header */}
-      <div className="fixed top-0 left-0 right-0 z-40 bg-gray-50/95 backdrop-blur-sm border-b border-gray-200/50 transition-all duration-200">
-        <div className="max-w-3xl mx-auto w-full px-4 sm:px-8 pt-6 pb-2 relative">
+      <div className="fixed top-0 left-0 right-0 z-40 bg-gray-50/95 backdrop-blur-sm border-b border-gray-200/50 transition-all duration-200 pt-[env(safe-area-inset-top)]">
+        <div className="max-w-3xl mx-auto w-full px-4 sm:px-8 py-4 relative">
             <div className="absolute top-4 right-4 sm:right-8 text-xs font-mono pointer-events-none">
                 {saveStatus === 'saving' && <span className="text-yellow-600">Saving...</span>}
                 {saveStatus === 'saved' && <span className="text-green-600 opacity-50">Saved</span>}
@@ -452,12 +453,13 @@ const App: React.FC = () => {
                 currentRootId={currentRootId} 
                 rootId={INITIAL_ROOT_ID} 
                 onNavigate={handleZoom} 
+                onRefresh={refreshData}
             />
         </div>
       </div>
 
       {/* Main Content Area */}
-      <div className="max-w-3xl mx-auto w-full flex-1 px-4 sm:px-8 pb-32 pt-28"
+      <div className="max-w-3xl mx-auto w-full flex-1 px-4 sm:px-8 pb-32 pt-[calc(6rem+env(safe-area-inset-top))]"
            onMouseDown={(e) => {
              // Ensure clicks in the empty area of the list start selection
              if (e.target === e.currentTarget) handleMouseDown(e);
@@ -512,7 +514,7 @@ const App: React.FC = () => {
       </div>
 
       {/* Mobile Toolbar */}
-      <div className={`fixed bottom-[10px] left-1/2 transform -translate-x-1/2 bg-black rounded-full px-5 py-3 flex items-center gap-6 shadow-lg z-50 md:hidden transition-all duration-200 ${focusedId ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none'}`}>
+      <div className={`fixed bottom-[max(10px,env(safe-area-inset-bottom))] left-1/2 transform -translate-x-1/2 bg-black rounded-full px-5 py-3 flex items-center gap-6 shadow-lg z-50 md:hidden transition-all duration-200 ${focusedId ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none'}`}>
         <button 
             onMouseDown={(e) => { e.preventDefault(); handleMobileAction('outdent'); }}
             disabled={!mobileActionStates.canOutdent}

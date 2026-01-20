@@ -2,7 +2,7 @@
 import { useReducer, useEffect, useCallback, useState, useRef } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { ItemMap, WorkflowyState, Action, DropPosition, SaveStatus, Item } from '../types';
+import { WorkflowyState, Action, DropPosition, SaveStatus, Item } from '../types';
 import { generateId, getDefaultState, findParentId, isAncestor, getUserDocId } from '../utils';
 
 // Internal history state wrapper
@@ -374,57 +374,63 @@ export const useBulletpoints = () => {
 
   const { present: state } = historyState;
 
-  // Load Data Effect
-  useEffect(() => {
-    const loadData = async () => {
-      // 1. Fallback to Local Storage if Firebase is not configured
-      if (!db) {
-        const localData = localStorage.getItem(LOCAL_STORAGE_KEY);
-        if (localData) {
-          try {
-            dispatch({ type: 'LOAD_STATE', state: JSON.parse(localData) });
-          } catch (e) {
-            console.error('Failed to parse local data', e);
-            dispatch({ type: 'LOAD_STATE', state: getDefaultState() });
-          }
-        } else {
+  // Load Data function (exposed for refresh)
+  const refreshData = useCallback(async () => {
+    setLoading(true);
+    isInitialLoad.current = true; // Prevent auto-save during loading
+
+    // 1. Fallback to Local Storage if Firebase is not configured
+    if (!db) {
+      const localData = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (localData) {
+        try {
+          dispatch({ type: 'LOAD_STATE', state: JSON.parse(localData) });
+        } catch (e) {
+          console.error('Failed to parse local data', e);
           dispatch({ type: 'LOAD_STATE', state: getDefaultState() });
         }
-        setLoading(false);
+      } else {
+        dispatch({ type: 'LOAD_STATE', state: getDefaultState() });
+      }
+      setLoading(false);
+      // Small delay prevents save effect from firing immediately
+      setTimeout(() => {
         isInitialLoad.current = false;
-        return;
+      }, 500);
+      return;
+    }
+
+    // 2. Firebase Load
+    try {
+      const docId = getUserDocId();
+      const docRef = doc(db, 'bulletpoints-data', docId);
+      const docSnap = await getDoc(docRef);
+
+      if (docSnap.exists()) {
+        const data = docSnap.data() as WorkflowyState;
+        dispatch({ type: 'LOAD_STATE', state: data });
+      } else {
+        // New user, save default state immediately so it exists next time
+        const defaultState = getDefaultState();
+        await setDoc(docRef, defaultState);
+        dispatch({ type: 'LOAD_STATE', state: defaultState });
       }
-
-      // 2. Firebase Load
-      try {
-        const docId = getUserDocId();
-        const docRef = doc(db, 'bulletpoints-data', docId);
-        const docSnap = await getDoc(docRef);
-
-        if (docSnap.exists()) {
-          const data = docSnap.data() as WorkflowyState;
-          dispatch({ type: 'LOAD_STATE', state: data });
-        } else {
-          // New user, save default state immediately so it exists next time
-          const defaultState = getDefaultState();
-          await setDoc(docRef, defaultState);
-          dispatch({ type: 'LOAD_STATE', state: defaultState });
-        }
-      } catch (error) {
-        console.error("Error loading data from Firebase:", error);
-        // Fallback to local storage on error? For now just log it.
-        // It's possible the user hasn't created the database yet.
-      } finally {
-        setLoading(false);
-        // Small delay to prevent the save effect from firing immediately after load
-        setTimeout(() => {
-          isInitialLoad.current = false;
-        }, 500);
-      }
-    };
-
-    loadData();
+    } catch (error) {
+      console.error("Error loading data from Firebase:", error);
+      // Fallback to local storage or defaults on error if needed
+    } finally {
+      setLoading(false);
+      // Small delay to prevent the save effect from firing immediately after load
+      setTimeout(() => {
+        isInitialLoad.current = false;
+      }, 500);
+    }
   }, []);
+
+  // Initial Load Effect
+  useEffect(() => {
+    refreshData();
+  }, [refreshData]);
 
   // Save Effect (Debounced)
   useEffect(() => {
@@ -520,5 +526,6 @@ export const useBulletpoints = () => {
     changeFontSize,
     undo,
     redo,
+    refreshData,
   };
 };
