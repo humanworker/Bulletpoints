@@ -30,6 +30,33 @@ const App: React.FC = () => {
   // View State
   const [currentRootId, setCurrentRootId] = useState<string>(INITIAL_ROOT_ID);
   
+  // Theme State
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('bulletpoints-theme');
+      if (saved) return saved === 'dark';
+      return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }
+    return false;
+  });
+
+  const toggleTheme = () => {
+    setIsDarkMode(prev => {
+      const newMode = !prev;
+      localStorage.setItem('bulletpoints-theme', newMode ? 'dark' : 'light');
+      return newMode;
+    });
+  };
+
+  // Sync theme with body/html for overscroll areas
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [isDarkMode]);
+
   // Focus State
   const [focusedId, setFocusedIdState] = useState<string | null>(null);
   const [focusOffset, setFocusOffset] = useState<number | null>(null);
@@ -71,7 +98,7 @@ const App: React.FC = () => {
       // Only flash green if we are coming from a non-empty state (active saving/error)
       // and not during initial load
       if (!loading && rootStatusColor !== '') {
-        setRootStatusColor('text-green-600');
+        setRootStatusColor('text-green-600 dark:text-green-400');
         timeout = setTimeout(() => {
           setRootStatusColor(''); // Return to default
         }, 3000);
@@ -256,11 +283,6 @@ const App: React.FC = () => {
         deleteItem(id, parentId);
         return;
       }
-      
-      // Standard split is now handled by onSplit which intercepts Enter in BulletNode
-      // This block is fallback or if onSplit is not used for some reason.
-      // But since BulletNode uses contentEditable and intercepts Enter, this code might be dead for Enter key
-      // unless onSplit logic fails.
       
     } else if (e.key === 'Tab') {
       e.preventDefault();
@@ -515,198 +537,203 @@ const App: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-gray-50">
+      <div className={`flex items-center justify-center h-screen ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
         <div className="text-gray-400 text-lg animate-pulse">Loading Bulletpoints...</div>
       </div>
     );
   }
 
+  // Use the "dark" class on the outer div to trigger Tailwind's class mode
   return (
-    <div 
-        className="min-h-screen bg-gray-50 flex flex-col relative select-none"
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
-    >
-      {/* Selection Marquee */}
-      {selectionRect && (
-        <div 
-          className="fixed border border-blue-500 bg-blue-400 bg-opacity-20 pointer-events-none z-50"
-          style={{
-            left: selectionRect.x,
-            top: selectionRect.y,
-            width: selectionRect.width,
-            height: selectionRect.height
-          }}
-        />
-      )}
-
-      {/* Fixed Header */}
-      <div className="fixed top-0 left-0 right-0 z-40 bg-gray-50/95 backdrop-blur-sm border-b border-gray-200/50 transition-all duration-200 pt-[env(safe-area-inset-top)]">
-        <div className="max-w-3xl mx-auto w-full px-4 sm:px-8 py-4 relative">
-            <Breadcrumbs 
-                items={items} 
-                currentRootId={currentRootId} 
-                rootId={INITIAL_ROOT_ID} 
-                onNavigate={handleZoom} 
-                onRefresh={refreshData}
-                rootClassName={rootStatusColor}
-            />
-        </div>
-      </div>
-
-      {/* Main Content Area */}
-      <div className="max-w-3xl mx-auto w-full flex-1 px-4 sm:px-8 pb-32 pt-[calc(6rem+env(safe-area-inset-top))]"
-           onMouseDown={(e) => {
-             // Ensure clicks in the empty area of the list start selection
-             if (e.target === e.currentTarget) handleMouseDown(e);
-           }}
+    <div className={isDarkMode ? 'dark' : ''}>
+      <div 
+          className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col relative select-none transition-colors duration-200"
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
       >
-        {rootItem && (
-          <div className="pl-1">
-            {currentRootId !== INITIAL_ROOT_ID && (
-              <h1 className="text-3xl font-bold mb-6 text-gray-900 outline-none"
-                  onClick={(e) => { e.stopPropagation(); setFocusedId(currentRootId); setSelectedIds(new Set()); }}
-              >
-                {stripHtml(rootItem.text)}
-              </h1>
-            )}
-
-            {rootItem.children.length === 0 && (
-              <div className="text-gray-400 italic mt-4 cursor-text" 
-                    onClick={(e) => { 
-                      e.stopPropagation(); 
-                      const newId = generateId();
-                      addItem(currentRootId, null, newId); 
-                      setFocusedId(newId);
-                      setSelectedIds(new Set());
-                    }}>
-                Empty list. Press Enter to add an item.
-              </div>
-            )}
-
-            {rootItem.children.map((childId) => (
-              <BulletNode
-                key={childId}
-                id={childId}
-                items={items}
-                parentId={currentRootId}
-                focusedId={focusedId}
-                focusOffset={focusOffset}
-                selectedIds={selectedIds}
-                setFocusedId={setFocusedId}
-                onKeyDown={handleKeyDown}
-                onSplit={handleSplit}
-                onUpdateText={updateText}
-                onZoom={handleZoom}
-                onToggleCollapse={toggleCollapse}
-                onMoveItems={moveItems}
-                onSelect={handleSelect}
-                onMultiLinePaste={handleMultiLinePaste}
-                onChangeFontSize={changeFontSize}
-              />
-            ))}
-          </div>
+        {/* Selection Marquee */}
+        {selectionRect && (
+          <div 
+            className="fixed border border-blue-500 bg-blue-400 bg-opacity-20 pointer-events-none z-50"
+            style={{
+              left: selectionRect.x,
+              top: selectionRect.y,
+              width: selectionRect.width,
+              height: selectionRect.height
+            }}
+          />
         )}
-      </div>
 
-      {/* Mobile Toolbar */}
-      <div className={`fixed bottom-[max(10px,env(safe-area-inset-bottom))] left-1/2 transform -translate-x-1/2 bg-black rounded-full px-5 py-3 flex items-center gap-6 shadow-lg z-50 md:hidden transition-all duration-200 ${focusedId ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none'}`}>
-        <button 
-            onMouseDown={(e) => { e.preventDefault(); handleMobileAction('outdent'); }}
-            disabled={!mobileActionStates.canOutdent}
-            className={`transition-all ${mobileActionStates.canOutdent ? 'text-white opacity-80 hover:opacity-100 active:scale-90' : 'text-gray-600 cursor-not-allowed opacity-50'}`}
+        {/* Fixed Header */}
+        <div className="fixed top-0 left-0 right-0 z-40 bg-gray-50/95 dark:bg-gray-900/95 backdrop-blur-sm border-b border-gray-200/50 dark:border-gray-800/50 transition-all duration-200 pt-[env(safe-area-inset-top)]">
+          <div className="max-w-3xl mx-auto w-full px-4 sm:px-8 py-4 relative">
+              <Breadcrumbs 
+                  items={items} 
+                  currentRootId={currentRootId} 
+                  rootId={INITIAL_ROOT_ID} 
+                  onNavigate={handleZoom} 
+                  onRefresh={refreshData}
+                  rootClassName={rootStatusColor}
+                  isDarkMode={isDarkMode}
+                  onToggleTheme={toggleTheme}
+              />
+          </div>
+        </div>
+
+        {/* Main Content Area */}
+        <div className="max-w-3xl mx-auto w-full flex-1 px-4 sm:px-8 pb-32 pt-[calc(6rem+env(safe-area-inset-top))]"
+            onMouseDown={(e) => {
+              // Ensure clicks in the empty area of the list start selection
+              if (e.target === e.currentTarget) handleMouseDown(e);
+            }}
         >
-            {/* Outdent Icon (Arrow Left to Line) */}
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M7 21V3"/>
-                <path d="M22 12H11"/>
-                <path d="M15 8l-4 4 4 4"/>
-            </svg>
-        </button>
+          {rootItem && (
+            <div className="pl-1">
+              {currentRootId !== INITIAL_ROOT_ID && (
+                <h1 className="text-3xl font-bold mb-6 text-gray-900 dark:text-gray-100 outline-none"
+                    onClick={(e) => { e.stopPropagation(); setFocusedId(currentRootId); setSelectedIds(new Set()); }}
+                >
+                  {stripHtml(rootItem.text)}
+                </h1>
+              )}
+
+              {rootItem.children.length === 0 && (
+                <div className="text-gray-400 dark:text-gray-500 italic mt-4 cursor-text" 
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        const newId = generateId();
+                        addItem(currentRootId, null, newId); 
+                        setFocusedId(newId);
+                        setSelectedIds(new Set());
+                      }}>
+                  Empty list. Press Enter to add an item.
+                </div>
+              )}
+
+              {rootItem.children.map((childId) => (
+                <BulletNode
+                  key={childId}
+                  id={childId}
+                  items={items}
+                  parentId={currentRootId}
+                  focusedId={focusedId}
+                  focusOffset={focusOffset}
+                  selectedIds={selectedIds}
+                  setFocusedId={setFocusedId}
+                  onKeyDown={handleKeyDown}
+                  onSplit={handleSplit}
+                  onUpdateText={updateText}
+                  onZoom={handleZoom}
+                  onToggleCollapse={toggleCollapse}
+                  onMoveItems={moveItems}
+                  onSelect={handleSelect}
+                  onMultiLinePaste={handleMultiLinePaste}
+                  onChangeFontSize={changeFontSize}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Mobile Toolbar */}
+        <div className={`fixed bottom-[max(10px,env(safe-area-inset-bottom))] left-1/2 transform -translate-x-1/2 bg-black dark:bg-gray-800 dark:border dark:border-gray-700 rounded-full px-5 py-3 flex items-center gap-6 shadow-lg z-50 md:hidden transition-all duration-200 ${focusedId ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none'}`}>
+          <button 
+              onMouseDown={(e) => { e.preventDefault(); handleMobileAction('outdent'); }}
+              disabled={!mobileActionStates.canOutdent}
+              className={`transition-all ${mobileActionStates.canOutdent ? 'text-white opacity-80 hover:opacity-100 active:scale-90' : 'text-gray-600 dark:text-gray-500 cursor-not-allowed opacity-50'}`}
+          >
+              {/* Outdent Icon (Arrow Left to Line) */}
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M7 21V3"/>
+                  <path d="M22 12H11"/>
+                  <path d="M15 8l-4 4 4 4"/>
+              </svg>
+          </button>
+          
+          <button 
+              onMouseDown={(e) => { e.preventDefault(); handleMobileAction('indent'); }}
+              disabled={!mobileActionStates.canIndent}
+              className={`transition-all ${mobileActionStates.canIndent ? 'text-white opacity-80 hover:opacity-100 active:scale-90' : 'text-gray-600 dark:text-gray-500 cursor-not-allowed opacity-50'}`}
+          >
+              {/* Indent Icon (Arrow Right to Line) */}
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 21V3"/>
+                  <path d="M3 12h11"/>
+                  <path d="M10 8l4 4-4 4"/>
+              </svg>
+          </button>
+
+          <button 
+              onMouseDown={(e) => { e.preventDefault(); handleMobileAction('delete'); }}
+              className={`transition-all ${isConfirmingDelete ? 'text-red-600 opacity-100 scale-110' : 'text-white opacity-80 hover:opacity-100 active:scale-90'}`}
+          >
+              {/* Delete Icon (X) */}
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 6 6 18"/>
+                  <path d="m6 6 12 12"/>
+              </svg>
+          </button>
+
+          <button 
+              onMouseDown={(e) => { e.preventDefault(); undo(); }}
+              disabled={!canUndo}
+              className={`transition-all ${canUndo ? 'text-white opacity-80 hover:opacity-100 active:scale-90' : 'text-gray-600 dark:text-gray-500 cursor-not-allowed opacity-50'}`}
+          >
+              {/* Undo Icon */}
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 7v6h6"/>
+                  <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/>
+              </svg>
+          </button>
+
+          <button 
+              onMouseDown={(e) => { e.preventDefault(); redo(); }}
+              disabled={!canRedo}
+              className={`transition-all ${canRedo ? 'text-white opacity-80 hover:opacity-100 active:scale-90' : 'text-gray-600 dark:text-gray-500 cursor-not-allowed opacity-50'}`}
+          >
+              {/* Redo Icon */}
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 7v6h-6"/>
+                  <path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 3.7"/>
+              </svg>
+          </button>
+
+          <button 
+              onMouseDown={(e) => { e.preventDefault(); handleMobileAction('expand'); }}
+              disabled={!mobileActionStates.canExpand}
+              className={`transition-all ${mobileActionStates.canExpand ? 'text-white opacity-80 hover:opacity-100 active:scale-90' : 'text-gray-600 dark:text-gray-500 cursor-not-allowed opacity-50'}`}
+          >
+              {/* Expand Icon (Chevrons Out) */}
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="m7 15 5 5 5-5"/>
+                  <path d="m7 9 5-5 5 5"/>
+              </svg>
+          </button>
+
+          <button 
+              onMouseDown={(e) => { e.preventDefault(); handleMobileAction('collapse'); }}
+              disabled={!mobileActionStates.canCollapse}
+              className={`transition-all ${mobileActionStates.canCollapse ? 'text-white opacity-80 hover:opacity-100 active:scale-90' : 'text-gray-600 dark:text-gray-500 cursor-not-allowed opacity-50'}`}
+          >
+              {/* Collapse Icon (Chevrons In) */}
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="m7 20 5-5 5 5"/>
+                  <path d="m7 4 5 5 5-5"/>
+              </svg>
+          </button>
+        </div>
         
-        <button 
-            onMouseDown={(e) => { e.preventDefault(); handleMobileAction('indent'); }}
-            disabled={!mobileActionStates.canIndent}
-            className={`transition-all ${mobileActionStates.canIndent ? 'text-white opacity-80 hover:opacity-100 active:scale-90' : 'text-gray-600 cursor-not-allowed opacity-50'}`}
-        >
-            {/* Indent Icon (Arrow Right to Line) */}
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 21V3"/>
-                <path d="M3 12h11"/>
-                <path d="M10 8l4 4-4 4"/>
-            </svg>
-        </button>
-
-        <button 
-            onMouseDown={(e) => { e.preventDefault(); handleMobileAction('delete'); }}
-            className={`transition-all ${isConfirmingDelete ? 'text-red-600 opacity-100 scale-110' : 'text-white opacity-80 hover:opacity-100 active:scale-90'}`}
-        >
-            {/* Delete Icon (X) */}
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M18 6 6 18"/>
-                <path d="m6 6 12 12"/>
-            </svg>
-        </button>
-
-        <button 
-            onMouseDown={(e) => { e.preventDefault(); undo(); }}
-            disabled={!canUndo}
-            className={`transition-all ${canUndo ? 'text-white opacity-80 hover:opacity-100 active:scale-90' : 'text-gray-600 cursor-not-allowed opacity-50'}`}
-        >
-            {/* Undo Icon */}
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 7v6h6"/>
-                <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/>
-            </svg>
-        </button>
-
-        <button 
-            onMouseDown={(e) => { e.preventDefault(); redo(); }}
-            disabled={!canRedo}
-            className={`transition-all ${canRedo ? 'text-white opacity-80 hover:opacity-100 active:scale-90' : 'text-gray-600 cursor-not-allowed opacity-50'}`}
-        >
-            {/* Redo Icon */}
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 7v6h-6"/>
-                <path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 3.7"/>
-            </svg>
-        </button>
-
-        <button 
-            onMouseDown={(e) => { e.preventDefault(); handleMobileAction('expand'); }}
-            disabled={!mobileActionStates.canExpand}
-            className={`transition-all ${mobileActionStates.canExpand ? 'text-white opacity-80 hover:opacity-100 active:scale-90' : 'text-gray-600 cursor-not-allowed opacity-50'}`}
-        >
-            {/* Expand Icon (Chevrons Out) */}
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="m7 15 5 5 5-5"/>
-                <path d="m7 9 5-5 5 5"/>
-            </svg>
-        </button>
-
-        <button 
-            onMouseDown={(e) => { e.preventDefault(); handleMobileAction('collapse'); }}
-            disabled={!mobileActionStates.canCollapse}
-            className={`transition-all ${mobileActionStates.canCollapse ? 'text-white opacity-80 hover:opacity-100 active:scale-90' : 'text-gray-600 cursor-not-allowed opacity-50'}`}
-        >
-            {/* Collapse Icon (Chevrons In) */}
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="m7 20 5-5 5 5"/>
-                <path d="m7 4 5 5 5-5"/>
-            </svg>
-        </button>
-      </div>
-      
-      {/* Help / Footer - Hidden on Mobile */}
-      <div className="fixed bottom-4 right-4 text-xs text-gray-400 pointer-events-none text-right hidden md:block">
-        <p>Click & Drag background to select items</p>
-        <p>Cmd/Ctrl+Click bullet to collapse/expand</p>
-        <p>Drag bullet point to move items</p>
-        <p>Tab to indent, Shift+Tab to outdent</p>
-        <p>Cmd+B/I/U to format text</p>
-        <p>Cmd+1/2/3 to change text size</p>
+        {/* Help / Footer - Hidden on Mobile */}
+        <div className="fixed bottom-4 right-4 text-xs text-gray-400 dark:text-gray-500 pointer-events-none text-right hidden md:block">
+          <p>Click & Drag background to select items</p>
+          <p>Cmd/Ctrl+Click bullet to collapse/expand</p>
+          <p>Drag bullet point to move items</p>
+          <p>Tab to indent, Shift+Tab to outdent</p>
+          <p>Cmd+B/I/U to format text</p>
+          <p>Cmd+1/2/3 to change text size</p>
+        </div>
       </div>
     </div>
   );

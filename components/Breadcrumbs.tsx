@@ -10,6 +10,8 @@ interface BreadcrumbsProps {
   onNavigate: (id: string) => void;
   onRefresh?: () => void;
   rootClassName?: string;
+  isDarkMode?: boolean;
+  onToggleTheme?: () => void;
 }
 
 export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
@@ -19,6 +21,8 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
   onNavigate,
   onRefresh,
   rootClassName,
+  isDarkMode,
+  onToggleTheme,
 }) => {
   const path: Item[] = [];
   let curr: string | null = currentRootId;
@@ -81,7 +85,7 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
   }, [isAtRoot]);
 
   return (
-    <nav className="flex items-center text-lg text-gray-500 w-full overflow-hidden whitespace-nowrap select-none relative">
+    <nav className="flex items-center text-lg text-gray-500 dark:text-gray-400 w-full overflow-hidden whitespace-nowrap select-none relative">
       {path.map((item, index) => {
         const isLast = index === path.length - 1;
         const isRoot = index === 0;
@@ -94,7 +98,9 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
                 buttonClassName += rootClassName + " ";
                 buttonClassName += isLast ? 'font-bold' : 'cursor-pointer';
             } else {
-                buttonClassName += isLast ? 'font-bold text-gray-900' : 'cursor-pointer text-gray-500 hover:text-gray-700';
+                buttonClassName += isLast 
+                  ? 'font-bold text-gray-900 dark:text-gray-100' 
+                  : 'cursor-pointer text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200';
             }
             // If we are at root, the Home button becomes a toggle, so it should be clickable
             if (isAtRoot) {
@@ -102,7 +108,9 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
             }
         } else {
             buttonClassName += "shrink ";
-            buttonClassName += isLast ? 'font-bold text-gray-900' : 'cursor-pointer text-gray-500 hover:text-gray-700';
+            buttonClassName += isLast 
+              ? 'font-bold text-gray-900 dark:text-gray-100' 
+              : 'cursor-pointer text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200';
         }
 
         const handleClick = (e: React.MouseEvent) => {
@@ -116,7 +124,7 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
 
         return (
           <React.Fragment key={item.id}>
-            {index > 0 && <span className="mx-2 text-gray-300 shrink-0">/</span>}
+            {index > 0 && <span className="mx-2 text-gray-300 dark:text-gray-600 shrink-0">/</span>}
             <button
               onClick={handleClick}
               onDoubleClick={(e) => {
@@ -151,16 +159,16 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
       })}
       
       {/* Menu Items (Right Aligned) */}
-      {isAtRoot && isMenuOpen && (
+      {isAtRoot && isMenuOpen && onToggleTheme && (
         <div className="ml-auto flex items-center">
             <button 
-                className="font-bold text-gray-900 hover:text-gray-600 transition-colors cursor-pointer"
+                className="font-bold text-gray-900 hover:text-gray-600 dark:text-gray-100 dark:hover:text-gray-300 transition-colors cursor-pointer"
                 onClick={() => {
-                  console.log("Menu Item Clicked");
+                  onToggleTheme();
                   setIsMenuOpen(false);
                 }}
             >
-                Menu Item
+                {isDarkMode ? 'Light Theme' : 'Dark Theme'}
             </button>
         </div>
       )}

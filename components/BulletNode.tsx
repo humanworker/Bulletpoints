@@ -312,6 +312,8 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
             ghost.style.top = '-1000px';
             ghost.style.width = `${Math.min(containerRef.current.offsetWidth, 600)}px`;
             ghost.classList.remove('bg-blue-100');
+            ghost.classList.remove('dark:bg-blue-900');
+            ghost.classList.remove('dark:bg-opacity-40');
             const indicators = ghost.querySelectorAll('.drop-indicator');
             indicators.forEach(el => el.remove());
             document.body.appendChild(ghost);
@@ -378,7 +380,7 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
       <div 
         ref={containerRef}
         data-node-id={id}
-        className={`bullet-node-wrapper flex items-start pb-1 ${sizeConfig.wrapperPadding} pr-4 group transition-colors duration-100 relative rounded-sm ${isSelected ? 'bg-blue-100' : ''}`}
+        className={`bullet-node-wrapper flex items-start pb-1 ${sizeConfig.wrapperPadding} pr-4 group transition-colors duration-100 relative rounded-sm ${isSelected ? 'bg-blue-100 dark:bg-blue-900 dark:bg-opacity-40' : ''}`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
@@ -397,8 +399,8 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
             onClick={handleBulletClick}
             title="Click to zoom. Cmd+Click to collapse. Drag to move."
           ></div>
-          <div className="absolute inset-0 rounded-full bg-gray-200 opacity-0 group-hover/bullet:opacity-100 transition-opacity duration-200 transform scale-75 pointer-events-none"></div>
-          <div className={`z-10 rounded-full transition-all duration-200 pointer-events-none ${item.collapsed && hasChildren ? 'w-2 h-2 bg-gray-500 ring-2 ring-gray-300' : 'w-1.5 h-1.5 bg-gray-400 group-hover/bullet:bg-gray-600'}`}></div>
+          <div className="absolute inset-0 rounded-full bg-gray-200 dark:bg-gray-700 opacity-0 group-hover/bullet:opacity-100 transition-opacity duration-200 transform scale-75 pointer-events-none"></div>
+          <div className={`z-10 rounded-full transition-all duration-200 pointer-events-none ${item.collapsed && hasChildren ? 'w-2 h-2 bg-gray-500 dark:bg-gray-400 ring-2 ring-gray-300 dark:ring-gray-600' : 'w-1.5 h-1.5 bg-gray-400 dark:bg-gray-500 group-hover/bullet:bg-gray-600 dark:group-hover/bullet:bg-gray-300'}`}></div>
         </div>
 
         <div
@@ -410,13 +412,13 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
           onKeyDown={handleKeyDownWrapper}
           onPaste={handlePaste}
           onFocus={() => setFocusedId(id)}
-          className={`flex-grow min-w-0 outline-none text-gray-800 font-medium py-[2px] break-words ${sizeConfig.text}`}
+          className={`flex-grow min-w-0 outline-none text-gray-800 dark:text-gray-100 font-medium py-[2px] break-words ${sizeConfig.text}`}
           style={{ minHeight: '24px' }}
         />
       </div>
 
       {hasChildren && !item.collapsed && (
-        <div className="ml-5 border-l border-gray-200 pl-2">
+        <div className="ml-5 border-l border-gray-200 dark:border-gray-800 pl-2">
           {item.children.map((childId) => (
             <BulletNode
               key={childId}

@@ -1,3 +1,4 @@
+
 import { ItemMap, WorkflowyState } from './types';
 
 export const generateId = (): string => {
@@ -142,7 +143,8 @@ export const linkifyHtml = (html: string): string => {
         const href = url.startsWith('www.') ? `http://${url}` : url;
         a.href = href;
         a.textContent = url;
-        a.className = "text-blue-500 underline hover:text-blue-600 cursor-pointer";
+        // Updated class list for dark mode compatibility
+        a.className = "text-blue-500 dark:text-blue-400 underline hover:text-blue-600 dark:hover:text-blue-300 cursor-pointer";
         a.target = "_blank";
         a.rel = "noopener noreferrer";
         a.title = "Cmd+Click to open";

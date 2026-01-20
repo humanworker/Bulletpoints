@@ -5,6 +5,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
     <title>Bulletpoints</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              gray: {
+                850: '#1f2937', // Custom dark gray if needed
+              }
+            }
+          }
+        }
+      }
+    </script>
     <style>
       /* Hide scrollbar for cleaner look but keep functionality */
       body::-webkit-scrollbar {
@@ -29,6 +43,9 @@
         color: #d1d5db; /* gray-300 */
         cursor: text;
       }
+      .dark [contenteditable]:empty:before {
+        color: #4b5563; /* gray-600 */
+      }
 
       /* Mobile optimizations */
       * {
@@ -51,7 +68,7 @@
 }
 </script>
 </head>
-  <body class="bg-gray-50 text-gray-900 font-sans antialiased h-full w-full fixed overflow-hidden">
+  <body class="font-sans antialiased h-full w-full fixed overflow-hidden bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
     <div id="root" class="h-full w-full overflow-y-auto overscroll-none"></div>
     <script type="module" src="/index.tsx"></script>
   </body>
