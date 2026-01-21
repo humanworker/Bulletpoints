@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content" />
     <title>Bulletpoints</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -20,16 +20,38 @@
       }
     </script>
     <style>
-      /* Hide scrollbar for cleaner look but keep functionality */
-      body::-webkit-scrollbar {
-        width: 8px;
+      /* Modern Minimal Scrollbar */
+      :root {
+        --scrollbar-thumb: rgba(156, 163, 175, 0.3);
+        --scrollbar-thumb-hover: rgba(156, 163, 175, 0.6);
       }
-      body::-webkit-scrollbar-track {
+      .dark {
+        --scrollbar-thumb: rgba(107, 114, 128, 0.3);
+        --scrollbar-thumb-hover: rgba(107, 114, 128, 0.6);
+      }
+
+      /* Firefox */
+      * {
+        scrollbar-width: thin;
+        scrollbar-color: var(--scrollbar-thumb) transparent;
+      }
+
+      /* Webkit (Chrome, Safari, Edge) */
+      ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+      ::-webkit-scrollbar-track {
         background: transparent;
       }
-      body::-webkit-scrollbar-thumb {
-        background-color: rgba(156, 163, 175, 0.5);
-        border-radius: 20px;
+      ::-webkit-scrollbar-thumb {
+        background-color: var(--scrollbar-thumb);
+        border-radius: 99px;
+        border: 2px solid transparent; /* Creates padding effect */
+        background-clip: content-box;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background-color: var(--scrollbar-thumb-hover);
       }
       
       /* Rich Text Styles */
@@ -68,9 +90,9 @@
   }
 }
 </script>
-  <script type="module" crossorigin src="/assets/index-CV8KLZgx.js"></script>
+  <script type="module" crossorigin src="/assets/index-wAQ2ombv.js"></script>
 </head>
   <body class="font-sans antialiased h-full w-full fixed overflow-hidden bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
-    <div id="root" class="h-full w-full overflow-y-auto overscroll-none"></div>
+    <div id="root" class="h-full w-full overflow-hidden"></div>
   </body>
 </html>

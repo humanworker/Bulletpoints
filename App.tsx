@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useBulletpoints } from './hooks/useBulletpoints';
 import { BulletNode } from './components/BulletNode';
@@ -27,6 +26,8 @@ const App: React.FC = () => {
     refreshData
   } = useBulletpoints();
   
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
   // View State
   const [currentRootId, setCurrentRootId] = useState<string>(INITIAL_ROOT_ID);
   
@@ -149,6 +150,91 @@ const App: React.FC = () => {
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, [undo, redo]);
+
+  // Keyboard Visibility & Auto-Scroll Logic
+  useEffect(() => {
+    const ensureCaretVisible = () => {
+      if (!window.visualViewport || !scrollContainerRef.current) return;
+      
+      const selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0) return;
+      
+      const range = selection.getRangeAt(0);
+      
+      // Get rect of current selection/caret relative to viewport
+      const domRect = range.getBoundingClientRect();
+      
+      // Create a mutable copy since DOMRect properties are readonly
+      const rect = {
+          bottom: domRect.bottom,
+          height: domRect.height,
+          width: domRect.width,
+          x: domRect.x,
+          y: domRect.y
+      };
+
+      if (rect.height === 0 && rect.width === 0 && range.startContainer.nodeType === Node.ELEMENT_NODE) {
+          // If range is collapsed and no rect, try the element itself (e.g. empty bullet)
+          const el = range.startContainer as HTMLElement;
+          const elRect = el.getBoundingClientRect();
+          if (elRect) {
+              // Create artificial rect at start of element
+              rect.x = elRect.x;
+              rect.y = elRect.y;
+              rect.bottom = elRect.bottom;
+          }
+      }
+
+      // We need to account for the mobile toolbar height (~60px) plus some padding
+      // This ensures the text isn't hidden *behind* the toolbar that sits on top of the keyboard
+      const toolbarHeight = 80; 
+      
+      // visualViewport.height is the height of the visible area (screen - keyboard)
+      const viewportHeight = window.visualViewport.height;
+      const visibleBottom = viewportHeight - toolbarHeight;
+
+      // Check if caret bottom is below the visible safe area
+      // Note: rect.bottom is coordinate relative to visual viewport top-left usually
+      if (rect.bottom > visibleBottom) {
+        const overflow = rect.bottom - visibleBottom;
+        // Scroll the container to reveal the text
+        // Use 'auto' behavior for typing responsiveness, 'smooth' for resize
+        scrollContainerRef.current.scrollBy({ top: overflow, behavior: 'smooth' });
+      }
+    };
+
+    // Listeners to trigger visibility check
+    const handleResize = () => {
+        // Wait a tick for layout to update after keyboard opens
+        setTimeout(ensureCaretVisible, 100);
+        setTimeout(ensureCaretVisible, 300); // Retry for slower devices
+    };
+
+    const handleInput = () => {
+        // Check immediately while typing
+        requestAnimationFrame(ensureCaretVisible);
+    };
+    
+    // Attach listeners
+    if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', handleResize);
+        window.visualViewport.addEventListener('scroll', handleResize);
+    }
+    
+    // Bubble up input events from contentEditable
+    document.addEventListener('input', handleInput);
+    
+    // Also check on click/focus changes
+    document.addEventListener('click', () => setTimeout(ensureCaretVisible, 100));
+
+    return () => {
+        if (window.visualViewport) {
+            window.visualViewport.removeEventListener('resize', handleResize);
+            window.visualViewport.removeEventListener('scroll', handleResize);
+        }
+        document.removeEventListener('input', handleInput);
+    };
+  }, []);
 
   // Reset delete confirmation if focus changes or component unmounts
   useEffect(() => {
@@ -545,9 +631,9 @@ const App: React.FC = () => {
 
   // Use the "dark" class on the outer div to trigger Tailwind's class mode
   return (
-    <div className={isDarkMode ? 'dark' : ''}>
+    <div className={isDarkMode ? 'dark h-full' : 'h-full'}>
       <div 
-          className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col relative select-none transition-colors duration-200"
+          className="h-full bg-gray-50 dark:bg-gray-900 flex flex-col relative select-none transition-colors duration-200"
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
@@ -566,8 +652,8 @@ const App: React.FC = () => {
           />
         )}
 
-        {/* Fixed Header */}
-        <div className="fixed top-0 left-0 right-0 z-40 bg-gray-50/95 dark:bg-gray-900/95 backdrop-blur-sm border-b border-gray-200/50 dark:border-gray-800/50 transition-all duration-200 pt-[env(safe-area-inset-top)]">
+        {/* Header - Not Fixed, Flex Item */}
+        <div className="flex-none w-full z-40 bg-gray-50/95 dark:bg-gray-900/95 border-b border-gray-200/50 dark:border-gray-800/50 pt-[env(safe-area-inset-top)]">
           <div className="max-w-3xl mx-auto w-full px-4 sm:px-8 py-4 relative">
               <Breadcrumbs 
                   items={items} 
@@ -582,59 +668,63 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        {/* Main Content Area */}
-        <div className="max-w-3xl mx-auto w-full flex-1 px-4 sm:px-8 pb-32 pt-[calc(6rem+env(safe-area-inset-top))]"
+        {/* Main Content Area - Flex Grow, Scrolls Internally */}
+        <div 
+            ref={scrollContainerRef}
+            className="flex-1 overflow-y-auto w-full"
             onMouseDown={(e) => {
               // Ensure clicks in the empty area of the list start selection
               if (e.target === e.currentTarget) handleMouseDown(e);
             }}
         >
-          {rootItem && (
-            <div className="pl-1">
-              {currentRootId !== INITIAL_ROOT_ID && (
-                <h1 className="text-3xl font-bold mb-6 text-gray-900 dark:text-gray-100 outline-none"
-                    onClick={(e) => { e.stopPropagation(); setFocusedId(currentRootId); setSelectedIds(new Set()); }}
-                >
-                  {stripHtml(rootItem.text)}
-                </h1>
-              )}
+          <div className="max-w-3xl mx-auto w-full px-4 sm:px-8 pb-32 pt-6">
+            {rootItem && (
+              <div className="pl-1">
+                {currentRootId !== INITIAL_ROOT_ID && (
+                  <h1 className="text-3xl font-bold mb-6 text-gray-900 dark:text-gray-100 outline-none"
+                      onClick={(e) => { e.stopPropagation(); setFocusedId(currentRootId); setSelectedIds(new Set()); }}
+                  >
+                    {stripHtml(rootItem.text)}
+                  </h1>
+                )}
 
-              {rootItem.children.length === 0 && (
-                <div className="text-gray-400 dark:text-gray-500 italic mt-4 cursor-text" 
-                      onClick={(e) => { 
-                        e.stopPropagation(); 
-                        const newId = generateId();
-                        addItem(currentRootId, null, newId); 
-                        setFocusedId(newId);
-                        setSelectedIds(new Set());
-                      }}>
-                  Empty list. Press Enter to add an item.
-                </div>
-              )}
+                {rootItem.children.length === 0 && (
+                  <div className="text-gray-400 dark:text-gray-500 italic mt-4 cursor-text" 
+                        onClick={(e) => { 
+                          e.stopPropagation(); 
+                          const newId = generateId();
+                          addItem(currentRootId, null, newId); 
+                          setFocusedId(newId);
+                          setSelectedIds(new Set());
+                        }}>
+                    Empty list. Press Enter to add an item.
+                  </div>
+                )}
 
-              {rootItem.children.map((childId) => (
-                <BulletNode
-                  key={childId}
-                  id={childId}
-                  items={items}
-                  parentId={currentRootId}
-                  focusedId={focusedId}
-                  focusOffset={focusOffset}
-                  selectedIds={selectedIds}
-                  setFocusedId={setFocusedId}
-                  onKeyDown={handleKeyDown}
-                  onSplit={handleSplit}
-                  onUpdateText={updateText}
-                  onZoom={handleZoom}
-                  onToggleCollapse={toggleCollapse}
-                  onMoveItems={moveItems}
-                  onSelect={handleSelect}
-                  onMultiLinePaste={handleMultiLinePaste}
-                  onChangeFontSize={changeFontSize}
-                />
-              ))}
-            </div>
-          )}
+                {rootItem.children.map((childId) => (
+                  <BulletNode
+                    key={childId}
+                    id={childId}
+                    items={items}
+                    parentId={currentRootId}
+                    focusedId={focusedId}
+                    focusOffset={focusOffset}
+                    selectedIds={selectedIds}
+                    setFocusedId={setFocusedId}
+                    onKeyDown={handleKeyDown}
+                    onSplit={handleSplit}
+                    onUpdateText={updateText}
+                    onZoom={handleZoom}
+                    onToggleCollapse={toggleCollapse}
+                    onMoveItems={moveItems}
+                    onSelect={handleSelect}
+                    onMultiLinePaste={handleMultiLinePaste}
+                    onChangeFontSize={changeFontSize}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Mobile Toolbar */}
@@ -726,7 +816,7 @@ const App: React.FC = () => {
         </div>
         
         {/* Help / Footer - Hidden on Mobile */}
-        <div className="fixed bottom-4 right-4 text-xs text-gray-400 dark:text-gray-500 pointer-events-none text-right hidden md:block">
+        <div className="fixed bottom-4 right-8 text-xs text-gray-400 dark:text-gray-500 pointer-events-none text-right hidden md:block">
           <p>Click & Drag background to select items</p>
           <p>Cmd/Ctrl+Click bullet to collapse/expand</p>
           <p>Drag bullet point to move items</p>
