@@ -1,3 +1,4 @@
+
 import React, { useRef, useState, useEffect } from 'react';
 import { ItemMap, Item } from '../types';
 import { stripHtml } from '../utils';
@@ -13,6 +14,7 @@ interface BreadcrumbsProps {
   onToggleTheme?: () => void;
   showHelp?: boolean;
   onToggleHelp?: () => void;
+  onExport?: () => void;
 }
 
 export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
@@ -26,6 +28,7 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
   onToggleTheme,
   showHelp,
   onToggleHelp,
+  onExport,
 }) => {
   const path: Item[] = [];
   let curr: string | null = currentRootId;
@@ -183,6 +186,18 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
                     }}
                 >
                     {isDarkMode ? 'Light Theme' : 'Dark Theme'}
+                </button>
+            )}
+
+            {onExport && (
+                <button 
+                    className="font-bold text-gray-900 hover:text-gray-600 dark:text-gray-100 dark:hover:text-gray-300 transition-colors cursor-pointer"
+                    onClick={() => {
+                        onExport();
+                        setIsMenuOpen(false);
+                    }}
+                >
+                    Export
                 </button>
             )}
         </div>

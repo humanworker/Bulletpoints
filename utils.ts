@@ -1,4 +1,5 @@
 
+
 import { ItemMap, WorkflowyState } from './types';
 
 export const generateId = (): string => {
@@ -165,4 +166,31 @@ export const linkifyHtml = (html: string): string => {
   });
   
   return changed ? div.innerHTML : html;
+};
+
+export const exportToText = (items: ItemMap, rootId: string): string => {
+  let output = '';
+  
+  const processList = (itemIds: string[], depth: number) => {
+    for (const id of itemIds) {
+      const item = items[id];
+      if (!item) continue;
+      
+      const prefix = '-'.repeat(depth);
+      const text = stripHtml(item.text); 
+      
+      output += `${prefix}${text}\n`;
+      
+      if (item.children.length > 0) {
+        processList(item.children, depth + 1);
+      }
+    }
+  };
+
+  const root = items[rootId];
+  if (root) {
+    processList(root.children, 0);
+  }
+  
+  return output.trim();
 };

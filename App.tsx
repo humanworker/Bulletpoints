@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useBulletpoints } from './hooks/useBulletpoints';
 import { BulletNode } from './components/BulletNode';
 import { Breadcrumbs } from './components/Breadcrumbs';
-import { INITIAL_ROOT_ID, getVisibleFlatList, generateId, stripHtml, findParentId } from './utils';
+import { INITIAL_ROOT_ID, getVisibleFlatList, generateId, stripHtml, findParentId, exportToText } from './utils';
+import { Capacitor } from '@capacitor/core';
 
 const App: React.FC = () => {
   const { 
@@ -30,6 +31,13 @@ const App: React.FC = () => {
 
   // View State
   const [currentRootId, setCurrentRootId] = useState<string>(INITIAL_ROOT_ID);
+
+  // Reset scroll when changing views
+  useEffect(() => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = 0;
+    }
+  }, [currentRootId]);
   
   // Theme State
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
@@ -74,6 +82,20 @@ const App: React.FC = () => {
       localStorage.setItem('bulletpoints-show-help', newState ? 'true' : 'false');
       return newState;
     });
+  };
+
+  // Export Logic
+  const handleExport = () => {
+    const text = exportToText(items, currentRootId);
+    const blob = new Blob([text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `bulletpoints_export_${new Date().toISOString().slice(0, 10)}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   // Focus State
@@ -317,7 +339,7 @@ const App: React.FC = () => {
         const newId = generateId();
         let lineContent = lines[i];
         
-        // If it's the last line, append suffix
+        // If it is the last line, append suffix
         if (i === lines.length - 1) {
             lineContent += suffix;
         }
@@ -684,6 +706,7 @@ const App: React.FC = () => {
                   onToggleTheme={toggleTheme}
                   showHelp={showHelp}
                   onToggleHelp={toggleHelp}
+                  onExport={Capacitor.getPlatform() === 'android' ? undefined : handleExport}
               />
           </div>
         </div>
