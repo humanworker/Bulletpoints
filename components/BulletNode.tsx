@@ -397,7 +397,6 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
           <div 
             className="absolute inset-0 rounded-full cursor-pointer z-20 transform scale-150"
             onClick={handleBulletClick}
-            title="Click to zoom. Cmd+Click to collapse. Drag to move."
           ></div>
           <div className="absolute inset-0 rounded-full bg-gray-200 dark:bg-gray-700 opacity-0 group-hover/bullet:opacity-100 transition-opacity duration-200 transform scale-75 pointer-events-none"></div>
           <div className={`z-10 rounded-full transition-all duration-200 pointer-events-none ${item.collapsed && hasChildren ? 'w-2 h-2 bg-gray-500 dark:bg-gray-400 ring-2 ring-gray-300 dark:ring-gray-600' : 'w-1.5 h-1.5 bg-gray-400 dark:bg-gray-500 group-hover/bullet:bg-gray-600 dark:group-hover/bullet:bg-gray-300'}`}></div>

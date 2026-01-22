@@ -1,4 +1,3 @@
-
 import React, { useRef, useState, useEffect } from 'react';
 import { ItemMap, Item } from '../types';
 import { stripHtml } from '../utils';
@@ -12,6 +11,8 @@ interface BreadcrumbsProps {
   rootClassName?: string;
   isDarkMode?: boolean;
   onToggleTheme?: () => void;
+  showHelp?: boolean;
+  onToggleHelp?: () => void;
 }
 
 export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
@@ -23,11 +24,14 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
   rootClassName,
   isDarkMode,
   onToggleTheme,
+  showHelp,
+  onToggleHelp,
 }) => {
   const path: Item[] = [];
   let curr: string | null = currentRootId;
   const lastTapRef = useRef<number>(0);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const navRef = useRef<HTMLElement>(null);
 
   // Build path backwards from current view to absolute root
   const findParent = (childId: string): string | null => {
@@ -53,17 +57,14 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
 
   const isAtRoot = currentRootId === rootId;
 
-  // Close menu when clicking outside header
+  // Close menu when clicking outside
   useEffect(() => {
     if (!isMenuOpen) return;
 
     const handleClickOutside = (event: MouseEvent | TouchEvent) => {
-      const target = event.target as HTMLElement;
-      // The header container in App.tsx typically has 'fixed' and 'top-0' classes.
-      // We look for the closest header container to exclude clicks within it.
-      const header = document.querySelector('.fixed.top-0');
-      
-      if (header && !header.contains(target)) {
+      const target = event.target as Node;
+      // Close only if clicking outside the nav container
+      if (navRef.current && !navRef.current.contains(target)) {
         setIsMenuOpen(false);
       }
     };
@@ -85,11 +86,13 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
   }, [isAtRoot]);
 
   return (
-    <nav className="flex items-center text-lg text-gray-500 dark:text-gray-400 w-full overflow-hidden whitespace-nowrap select-none relative">
+    <nav ref={navRef} className="flex items-center text-lg text-gray-500 dark:text-gray-400 w-full overflow-hidden whitespace-nowrap select-none relative">
       {path.map((item, index) => {
         const isLast = index === path.length - 1;
         const isRoot = index === 0;
-        const text = isRoot ? 'Home' : stripHtml(item.text) || 'Untitled';
+        
+        // "Menu" when at root level (to imply clickable options), "Home" when deep (to imply navigation back)
+        const text = isRoot ? (isAtRoot ? 'Menu' : 'Home') : stripHtml(item.text) || 'Untitled';
         
         let buttonClassName = "transition-colors duration-200 truncate ";
         if (isRoot) {
@@ -159,17 +162,29 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
       })}
       
       {/* Menu Items (Right Aligned) */}
-      {isAtRoot && isMenuOpen && onToggleTheme && (
-        <div className="ml-auto flex items-center">
-            <button 
-                className="font-bold text-gray-900 hover:text-gray-600 dark:text-gray-100 dark:hover:text-gray-300 transition-colors cursor-pointer"
-                onClick={() => {
-                  onToggleTheme();
-                  setIsMenuOpen(false);
-                }}
-            >
-                {isDarkMode ? 'Light Theme' : 'Dark Theme'}
-            </button>
+      {isAtRoot && isMenuOpen && (
+        <div className="ml-auto flex items-center gap-4 bg-gray-50 dark:bg-gray-900 pl-4">
+            {onToggleHelp && (
+                <button 
+                    className="hidden md:block font-bold text-gray-900 hover:text-gray-600 dark:text-gray-100 dark:hover:text-gray-300 transition-colors cursor-pointer"
+                    onClick={() => {
+                        onToggleHelp();
+                    }}
+                >
+                    {showHelp ? 'Hide Help' : 'Show Help'}
+                </button>
+            )}
+            
+            {onToggleTheme && (
+                <button 
+                    className="font-bold text-gray-900 hover:text-gray-600 dark:text-gray-100 dark:hover:text-gray-300 transition-colors cursor-pointer"
+                    onClick={() => {
+                      onToggleTheme();
+                    }}
+                >
+                    {isDarkMode ? 'Light Theme' : 'Dark Theme'}
+                </button>
+            )}
         </div>
       )}
     </nav>

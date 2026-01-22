@@ -58,6 +58,24 @@ const App: React.FC = () => {
     }
   }, [isDarkMode]);
 
+  // Help State
+  const [showHelp, setShowHelp] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('bulletpoints-show-help');
+      // Default to true
+      return saved !== 'false';
+    }
+    return true;
+  });
+
+  const toggleHelp = () => {
+    setShowHelp(prev => {
+      const newState = !prev;
+      localStorage.setItem('bulletpoints-show-help', newState ? 'true' : 'false');
+      return newState;
+    });
+  };
+
   // Focus State
   const [focusedId, setFocusedIdState] = useState<string | null>(null);
   const [focusOffset, setFocusOffset] = useState<number | null>(null);
@@ -664,6 +682,8 @@ const App: React.FC = () => {
                   rootClassName={rootStatusColor}
                   isDarkMode={isDarkMode}
                   onToggleTheme={toggleTheme}
+                  showHelp={showHelp}
+                  onToggleHelp={toggleHelp}
               />
           </div>
         </div>
@@ -816,6 +836,7 @@ const App: React.FC = () => {
         </div>
         
         {/* Help / Footer - Hidden on Mobile */}
+        {showHelp && (
         <div className="fixed bottom-4 right-8 text-xs text-gray-400 dark:text-gray-500 pointer-events-none text-right hidden md:block">
           <p>Click & Drag background to select items</p>
           <p>Cmd/Ctrl+Click bullet to collapse/expand</p>
@@ -824,6 +845,7 @@ const App: React.FC = () => {
           <p>Cmd+B/I/U to format text</p>
           <p>Cmd+1/2/3 to change text size</p>
         </div>
+        )}
       </div>
     </div>
   );
