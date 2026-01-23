@@ -1,6 +1,4 @@
 
-
-
 import React, { useRef, useEffect, useState, useLayoutEffect, useCallback } from 'react';
 import { Item, ItemMap, DropPosition } from '../types';
 import { linkifyHtml } from '../utils';
@@ -12,6 +10,7 @@ interface BulletNodeProps {
   focusedId: string | null;
   focusOffset?: number | null;
   selectedIds: Set<string>;
+  highlightedId: string | null;
   setFocusedId: (id: string | null) => void;
   onKeyDown: (e: React.KeyboardEvent, id: string, parentId: string, selectionStart?: number | null, text?: string) => void;
   onSplit: (id: string, htmlBefore: string, htmlAfter: string) => void;
@@ -66,6 +65,7 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
   focusedId,
   focusOffset,
   selectedIds,
+  highlightedId,
   setFocusedId,
   onKeyDown,
   onSplit,
@@ -87,6 +87,14 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
 
   const isSelected = selectedIds.has(id);
   const isFocused = focusedId === id;
+  const isHighlighted = highlightedId === id;
+
+  // Scroll into view if highlighted
+  useEffect(() => {
+    if (isHighlighted && containerRef.current) {
+      containerRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [isHighlighted]);
 
   // Focus management
   useEffect(() => {
@@ -281,7 +289,7 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
         restoreCaretRef.current = Math.max(0, currentCaret - 2); 
         
         onUpdateText(id, cleanHtml);
-        onSetIsTask(id, true);
+        onSetIsTask(id, !item.isTask);
         return;
     }
 
@@ -384,27 +392,38 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
   const sizeConfig = {
     'small': { 
       text: 'text-base leading-6', 
-      bulletMargin: 'mt-0',
+      bulletMargin: 'mt-0.5', 
       wrapperPadding: 'pt-1' 
     },
     'medium': { 
       text: 'text-2xl leading-8 font-medium', 
-      bulletMargin: 'mt-1', 
+      bulletMargin: 'mt-1.5', 
       wrapperPadding: 'pt-4' 
     },
     'large': { 
       text: 'text-3xl leading-9 font-bold', 
-      bulletMargin: 'mt-1.5', 
+      bulletMargin: 'mt-2', 
       wrapperPadding: 'pt-8' 
     },
   }[item.fontSize || 'small'];
+
+  // Style computation
+  let wrapperClasses = `bullet-node-wrapper flex items-start pb-1 ${sizeConfig.wrapperPadding} pr-4 group transition-colors duration-100 relative rounded-sm `;
+  
+  if (isSelected) {
+      wrapperClasses += 'bg-blue-100 dark:bg-blue-900 dark:bg-opacity-40 ';
+  }
+
+  const textColorClass = isHighlighted 
+      ? 'text-black dark:text-black' 
+      : 'text-gray-800 dark:text-gray-100';
 
   return (
     <div className="relative">
       <div 
         ref={containerRef}
         data-node-id={id}
-        className={`bullet-node-wrapper flex items-start pb-1 ${sizeConfig.wrapperPadding} pr-4 group transition-colors duration-100 relative rounded-sm ${isSelected ? 'bg-blue-100 dark:bg-blue-900 dark:bg-opacity-40' : ''}`}
+        className={wrapperClasses}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
@@ -421,7 +440,7 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
           {item.isTask ? (
             <input 
               type="checkbox"
-              className="appearance-none w-4 h-4 border-2 border-gray-400 dark:border-gray-500 rounded-sm bg-transparent checked:bg-blue-500 checked:border-blue-500 cursor-pointer transition-colors relative z-20"
+              className={`appearance-none w-4 h-4 border rounded-sm bg-transparent checked:bg-blue-500 checked:border-blue-500 cursor-pointer transition-colors relative z-20 translate-y-[1px] border-gray-400 dark:border-gray-500`}
               onClick={handleTaskClick}
             />
           ) : (
@@ -433,30 +452,50 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
               <div className="absolute inset-0 rounded-full bg-gray-200 dark:bg-gray-700 opacity-0 group-hover/bullet:opacity-100 transition-opacity duration-200 transform scale-75 pointer-events-none"></div>
               
               {item.collapsed && hasChildren ? (
-                <div className="z-10 w-1.5 h-1.5 bg-gray-500 dark:bg-gray-400 pointer-events-none transition-all duration-200 group-hover/bullet:bg-gray-700 dark:group-hover/bullet:bg-gray-200"></div>
+                <div className={`z-10 w-1.5 h-1.5 pointer-events-none transition-all duration-200 group-hover/bullet:bg-gray-700 dark:group-hover/bullet:bg-gray-200 ${isHighlighted ? 'bg-black' : 'bg-gray-500 dark:bg-gray-400'}`}></div>
               ) : (
-                <div className="z-10 rounded-full transition-all duration-200 pointer-events-none w-1.5 h-1.5 bg-gray-400 dark:bg-gray-500 group-hover/bullet:bg-gray-600 dark:group-hover/bullet:bg-gray-300"></div>
+                <div className={`z-10 rounded-full transition-all duration-200 pointer-events-none w-1.5 h-1.5 group-hover/bullet:bg-gray-600 dark:group-hover/bullet:bg-gray-300 ${isHighlighted ? 'bg-black' : 'bg-gray-400 dark:bg-gray-500'}`}></div>
               )}
             </>
           )}
         </div>
 
-        <div
-          ref={nodeRef}
-          contentEditable
-          suppressContentEditableWarning
-          onInput={handleInput}
-          onClick={handleContentClick}
-          onKeyDown={handleKeyDownWrapper}
-          onPaste={handlePaste}
-          onFocus={() => setFocusedId(id)}
-          className={`flex-grow min-w-0 outline-none text-gray-800 dark:text-gray-100 font-medium py-[2px] break-words ${sizeConfig.text} ${item.collapsed && hasChildren ? 'underline decoration-gray-300 dark:decoration-gray-600' : ''}`}
-          style={{ minHeight: '24px' }}
-        />
+        <div 
+          className="flex-grow min-w-0 cursor-text"
+          onClick={(e) => {
+            // Focus the editor if clicking on the empty space of the row
+            if (e.target !== nodeRef.current) {
+              e.preventDefault();
+              if (nodeRef.current) {
+                nodeRef.current.focus();
+                // Place cursor at the end
+                const range = document.createRange();
+                range.selectNodeContents(nodeRef.current);
+                range.collapse(false);
+                const sel = window.getSelection();
+                sel?.removeAllRanges();
+                sel?.addRange(range);
+              }
+            }
+          }}
+        >
+          <div
+            ref={nodeRef}
+            contentEditable
+            suppressContentEditableWarning
+            onInput={handleInput}
+            onClick={handleContentClick}
+            onKeyDown={handleKeyDownWrapper}
+            onPaste={handlePaste}
+            onFocus={() => setFocusedId(id)}
+            className={`outline-none font-medium py-[2px] break-words ${textColorClass} ${sizeConfig.text} ${item.collapsed && hasChildren ? 'underline decoration-gray-300 dark:decoration-gray-600' : ''} ${isHighlighted ? 'bg-yellow-300 dark:bg-yellow-300 rounded-sm px-1 -ml-1' : ''}`}
+            style={{ minHeight: '24px', display: 'inline-block', minWidth: '1px' }}
+          />
+        </div>
       </div>
 
       {hasChildren && !item.collapsed && (
-        <div className="ml-5 border-l border-gray-200 dark:border-gray-800 pl-2">
+        <div className={`ml-5 border-l pl-2 ${isHighlighted ? 'border-gray-800' : 'border-gray-200 dark:border-gray-800'}`}>
           {item.children.map((childId) => (
             <BulletNode
               key={childId}
@@ -466,6 +505,7 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
               focusedId={focusedId}
               focusOffset={focusOffset}
               selectedIds={selectedIds}
+              highlightedId={highlightedId}
               setFocusedId={setFocusedId}
               onKeyDown={onKeyDown}
               onSplit={onSplit}

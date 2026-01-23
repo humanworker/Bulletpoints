@@ -15,6 +15,8 @@ interface BreadcrumbsProps {
   showHelp?: boolean;
   onToggleHelp?: () => void;
   onExport?: () => void;
+  showTasksPane?: boolean;
+  onToggleTasksPane?: () => void;
 }
 
 export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
@@ -29,6 +31,8 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
   showHelp,
   onToggleHelp,
   onExport,
+  showTasksPane,
+  onToggleTasksPane,
 }) => {
   const path: Item[] = [];
   let curr: string | null = currentRootId;
@@ -167,6 +171,17 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
       {/* Menu Items (Right Aligned) */}
       {isAtRoot && isMenuOpen && (
         <div className="ml-auto flex items-center gap-4 bg-gray-50 dark:bg-gray-900 pl-4">
+            {onToggleTasksPane && (
+                <button 
+                    className="hidden md:block font-bold text-gray-900 hover:text-gray-600 dark:text-gray-100 dark:hover:text-gray-300 transition-colors cursor-pointer"
+                    onClick={() => {
+                        onToggleTasksPane();
+                    }}
+                >
+                    {showTasksPane ? 'Hide Tasks' : 'Show Tasks'}
+                </button>
+            )}
+
             {onToggleHelp && (
                 <button 
                     className="hidden md:block font-bold text-gray-900 hover:text-gray-600 dark:text-gray-100 dark:hover:text-gray-300 transition-colors cursor-pointer"
