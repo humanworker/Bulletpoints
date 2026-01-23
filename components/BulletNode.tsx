@@ -1,4 +1,6 @@
 
+
+
 import React, { useRef, useEffect, useState, useLayoutEffect, useCallback } from 'react';
 import { Item, ItemMap, DropPosition } from '../types';
 import { linkifyHtml } from '../utils';
@@ -20,6 +22,8 @@ interface BulletNodeProps {
   onSelect: (id: string, shiftKey: boolean, metaKey: boolean, altKey: boolean) => void;
   onMultiLinePaste: (id: string, parentId: string, text: string, prefix: string, suffix: string) => void;
   onChangeFontSize: (id: string, size: 'small' | 'medium' | 'large') => void;
+  onSetIsTask: (id: string, isTask: boolean) => void;
+  onDelete: (id: string, parentId: string) => void;
 }
 
 // Helper to set cursor at specific character offset within a contentEditable element
@@ -72,6 +76,8 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
   onSelect,
   onMultiLinePaste,
   onChangeFontSize,
+  onSetIsTask,
+  onDelete,
 }) => {
   const item = items[id];
   const nodeRef = useRef<HTMLDivElement>(null);
@@ -116,6 +122,11 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
         return;
     }
     onZoom(id);
+  };
+
+  const handleTaskClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onDelete(id, parentId);
   };
 
   const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
@@ -261,6 +272,19 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
 
   const handleInput = (e: React.FormEvent<HTMLDivElement>) => {
     const rawHtml = e.currentTarget.innerHTML;
+    
+    // Check for Task Conversion Command (/t)
+    if (rawHtml.includes('/t')) {
+        const cleanHtml = rawHtml.replace(/\/t/g, '');
+        const currentCaret = getCaretCharacterOffsetWithin(nodeRef.current!);
+        // Save caret position adjusted for removed chars
+        restoreCaretRef.current = Math.max(0, currentCaret - 2); 
+        
+        onUpdateText(id, cleanHtml);
+        onSetIsTask(id, true);
+        return;
+    }
+
     // Auto-linkify logic
     const linkedHtml = linkifyHtml(rawHtml);
     
@@ -394,12 +418,27 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
           draggable
           onDragStart={handleDragStart}
         >
-          <div 
-            className="absolute inset-0 rounded-full cursor-pointer z-20 transform scale-150"
-            onClick={handleBulletClick}
-          ></div>
-          <div className="absolute inset-0 rounded-full bg-gray-200 dark:bg-gray-700 opacity-0 group-hover/bullet:opacity-100 transition-opacity duration-200 transform scale-75 pointer-events-none"></div>
-          <div className={`z-10 rounded-full transition-all duration-200 pointer-events-none ${item.collapsed && hasChildren ? 'w-2 h-2 bg-gray-500 dark:bg-gray-400 ring-2 ring-gray-300 dark:ring-gray-600' : 'w-1.5 h-1.5 bg-gray-400 dark:bg-gray-500 group-hover/bullet:bg-gray-600 dark:group-hover/bullet:bg-gray-300'}`}></div>
+          {item.isTask ? (
+            <input 
+              type="checkbox"
+              className="appearance-none w-4 h-4 border-2 border-gray-400 dark:border-gray-500 rounded-sm bg-transparent checked:bg-blue-500 checked:border-blue-500 cursor-pointer transition-colors relative z-20"
+              onClick={handleTaskClick}
+            />
+          ) : (
+            <>
+              <div 
+                className="absolute inset-0 rounded-full cursor-pointer z-20 transform scale-150"
+                onClick={handleBulletClick}
+              ></div>
+              <div className="absolute inset-0 rounded-full bg-gray-200 dark:bg-gray-700 opacity-0 group-hover/bullet:opacity-100 transition-opacity duration-200 transform scale-75 pointer-events-none"></div>
+              
+              {item.collapsed && hasChildren ? (
+                <div className="z-10 w-1.5 h-1.5 bg-gray-500 dark:bg-gray-400 pointer-events-none transition-all duration-200 group-hover/bullet:bg-gray-700 dark:group-hover/bullet:bg-gray-200"></div>
+              ) : (
+                <div className="z-10 rounded-full transition-all duration-200 pointer-events-none w-1.5 h-1.5 bg-gray-400 dark:bg-gray-500 group-hover/bullet:bg-gray-600 dark:group-hover/bullet:bg-gray-300"></div>
+              )}
+            </>
+          )}
         </div>
 
         <div
@@ -411,7 +450,7 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
           onKeyDown={handleKeyDownWrapper}
           onPaste={handlePaste}
           onFocus={() => setFocusedId(id)}
-          className={`flex-grow min-w-0 outline-none text-gray-800 dark:text-gray-100 font-medium py-[2px] break-words ${sizeConfig.text}`}
+          className={`flex-grow min-w-0 outline-none text-gray-800 dark:text-gray-100 font-medium py-[2px] break-words ${sizeConfig.text} ${item.collapsed && hasChildren ? 'underline decoration-gray-300 dark:decoration-gray-600' : ''}`}
           style={{ minHeight: '24px' }}
         />
       </div>
@@ -437,6 +476,8 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
               onSelect={onSelect}
               onMultiLinePaste={onMultiLinePaste}
               onChangeFontSize={onChangeFontSize}
+              onSetIsTask={onSetIsTask}
+              onDelete={onDelete}
             />
           ))}
         </div>

@@ -1,4 +1,6 @@
 
+
+
 import { useReducer, useEffect, useCallback, useState, useRef } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -35,6 +37,7 @@ const reducer = (state: WorkflowyState, action: Action): WorkflowyState => {
         isCompleted: false,
         collapsed: false,
         fontSize: 'small',
+        isTask: false,
       };
 
       newItems[newId] = newItem;
@@ -287,6 +290,18 @@ const reducer = (state: WorkflowyState, action: Action): WorkflowyState => {
         },
       };
     }
+    
+    case 'SET_IS_TASK': {
+      const { id, isTask } = action;
+      if (!items[id]) return state;
+      return {
+        ...state,
+        items: {
+          ...items,
+          [id]: { ...items[id], isTask },
+        },
+      };
+    }
 
     default:
       return state;
@@ -500,6 +515,10 @@ export const useBulletpoints = () => {
   const changeFontSize = useCallback((id: string, size: 'small' | 'medium' | 'large') => {
     dispatch({ type: 'CHANGE_FONT_SIZE', id, size });
   }, []);
+  
+  const setIsTask = useCallback((id: string, isTask: boolean) => {
+    dispatch({ type: 'SET_IS_TASK', id, isTask });
+  }, []);
 
   const undo = useCallback(() => {
     dispatch({ type: 'UNDO' });
@@ -524,6 +543,7 @@ export const useBulletpoints = () => {
     moveItem,
     moveItems,
     changeFontSize,
+    setIsTask,
     undo,
     redo,
     canUndo: past.length > 0,

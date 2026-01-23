@@ -1,5 +1,6 @@
 
 
+
 import { ItemMap, WorkflowyState } from './types';
 
 export const generateId = (): string => {
@@ -25,6 +26,7 @@ export const getDefaultState = (): WorkflowyState => {
         children: [firstChildId],
         isCompleted: false,
         collapsed: false,
+        isTask: false,
       },
       [firstChildId]: {
         id: firstChildId,
@@ -32,6 +34,7 @@ export const getDefaultState = (): WorkflowyState => {
         children: [],
         isCompleted: false,
         collapsed: false,
+        isTask: false,
       },
     },
     rootId: INITIAL_ROOT_ID,

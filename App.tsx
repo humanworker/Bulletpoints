@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+
+
+import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { useBulletpoints } from './hooks/useBulletpoints';
 import { BulletNode } from './components/BulletNode';
 import { Breadcrumbs } from './components/Breadcrumbs';
@@ -20,6 +22,7 @@ const App: React.FC = () => {
     toggleCollapse, 
     moveItems,
     changeFontSize,
+    setIsTask,
     undo,
     redo,
     canUndo,
@@ -28,15 +31,27 @@ const App: React.FC = () => {
   } = useBulletpoints();
   
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const isNavigatingRef = useRef(false);
 
   // View State
   const [currentRootId, setCurrentRootId] = useState<string>(INITIAL_ROOT_ID);
 
   // Reset scroll when changing views
-  useEffect(() => {
+  useLayoutEffect(() => {
+    isNavigatingRef.current = true;
     if (scrollContainerRef.current) {
       scrollContainerRef.current.scrollTop = 0;
     }
+    
+    // Ensure scroll stays at top after layout/paint and prevent auto-scroll interference
+    requestAnimationFrame(() => {
+       if (scrollContainerRef.current) {
+         scrollContainerRef.current.scrollTop = 0;
+       }
+       setTimeout(() => {
+         isNavigatingRef.current = false;
+       }, 150);
+    });
   }, [currentRootId]);
   
   // Theme State
@@ -194,6 +209,7 @@ const App: React.FC = () => {
   // Keyboard Visibility & Auto-Scroll Logic
   useEffect(() => {
     const ensureCaretVisible = () => {
+      if (isNavigatingRef.current) return;
       if (!window.visualViewport || !scrollContainerRef.current) return;
       
       const selection = window.getSelection();
@@ -763,6 +779,8 @@ const App: React.FC = () => {
                     onSelect={handleSelect}
                     onMultiLinePaste={handleMultiLinePaste}
                     onChangeFontSize={changeFontSize}
+                    onSetIsTask={setIsTask}
+                    onDelete={deleteItem}
                   />
                 ))}
               </div>
@@ -864,6 +882,7 @@ const App: React.FC = () => {
           <p>Click & Drag background to select items</p>
           <p>Cmd/Ctrl+Click bullet to collapse/expand</p>
           <p>Drag bullet point to move items</p>
+          <p>Type /t to turn item into task</p>
           <p>Tab to indent, Shift+Tab to outdent</p>
           <p>Cmd+B/I/U to format text</p>
           <p>Cmd+1/2/3 to change text size</p>

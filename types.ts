@@ -1,4 +1,5 @@
 
+
 export interface Item {
   id: string;
   text: string;
@@ -6,6 +7,7 @@ export interface Item {
   isCompleted: boolean;
   collapsed: boolean;
   fontSize?: 'small' | 'medium' | 'large';
+  isTask?: boolean;
 }
 
 export interface ItemMap {
@@ -33,5 +35,6 @@ export type Action =
   | { type: 'MOVE_ITEMS'; dragIds: string[]; targetId: string; position: DropPosition }
   | { type: 'LOAD_STATE'; state: WorkflowyState }
   | { type: 'CHANGE_FONT_SIZE'; id: string; size: 'small' | 'medium' | 'large' }
+  | { type: 'SET_IS_TASK'; id: string; isTask: boolean }
   | { type: 'UNDO' }
   | { type: 'REDO' };
