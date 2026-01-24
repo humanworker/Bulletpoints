@@ -1,8 +1,3 @@
-
-
-
-
-
 import React, { useRef, useEffect, useState, useLayoutEffect, useCallback } from 'react';
 import { Item, ItemMap, DropPosition } from '../types';
 import { linkifyHtml, setCaretPosition, getCaretCharacterOffsetWithin } from '../utils';
@@ -136,6 +131,18 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
         if (!sel || sel.rangeCount === 0) return;
         
         const range = sel.getRangeAt(0);
+
+        // Check if we are at the very beginning of the text content
+        // This avoids destructive extraction if we are just inserting above
+        const preCaretRange = range.cloneRange();
+        preCaretRange.selectNodeContents(nodeRef.current);
+        preCaretRange.setEnd(range.startContainer, range.startOffset);
+        const textBefore = preCaretRange.toString();
+
+        if (textBefore.length === 0) {
+            onSplit(id, '', nodeRef.current.innerHTML);
+            return;
+        }
         
         // Create the "After" part
         const rangeAfter = range.cloneRange();

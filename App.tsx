@@ -1,8 +1,3 @@
-
-
-
-
-
 import React, { useState, useEffect, useRef, useLayoutEffect, useMemo } from 'react';
 import { useBulletpoints } from './hooks/useBulletpoints';
 import { BulletNode } from './components/BulletNode';
@@ -241,6 +236,33 @@ const App: React.FC = () => {
       if (!item) return;
       const parentId = Object.keys(items).find(key => items[key].children.includes(id));
       if (!parentId) return;
+      
+      const isAtStart = stripHtml(htmlBefore).length === 0;
+
+      // When pressing Enter at the start of an item with children, we want to insert 
+      // a new empty item ABOVE the current item, instead of making the current item
+      // a child of an empty parent.
+      if (isAtStart && item.children.length > 0) {
+          const newId = generateId();
+          const parent = items[parentId];
+          const index = parent.children.indexOf(id);
+          
+          let afterId = null;
+          if (index > 0) {
+              afterId = parent.children[index - 1];
+          }
+          
+          addItem(parentId, afterId, newId);
+          // Ensure current item has full text
+          updateText(id, htmlAfter);
+          
+          // Keep focus on the current item (which visually moved down)
+          setFocusedIdState(id);
+          setFocusOffset(0);
+          setSelectedIds(new Set());
+          return;
+      }
+
       updateText(id, htmlBefore);
       const newId = generateId();
       if (item && item.children.length > 0 && !item.collapsed) {
