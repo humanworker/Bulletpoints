@@ -1,6 +1,8 @@
 
 
 
+
+
 import React, { useState, useEffect, useRef, useLayoutEffect, useMemo } from 'react';
 import { useBulletpoints } from './hooks/useBulletpoints';
 import { BulletNode } from './components/BulletNode';
@@ -25,6 +27,7 @@ const App: React.FC = () => {
     indent, 
     outdent, 
     toggleCollapse, 
+    moveItem,
     moveItems,
     changeFontSize,
     setIsTask,
@@ -254,6 +257,38 @@ const App: React.FC = () => {
   const handleKeyDown = (e: React.KeyboardEvent, id: string, parentId: string, selectionStart?: number | null, currentText?: string) => {
     if (!e.shiftKey && !e.metaKey && !e.ctrlKey && selectedIds.size > 0 && e.key.startsWith('Arrow')) {
         setSelectedIds(new Set());
+    }
+
+    if (e.key === 'ArrowUp' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        const parent = items[parentId];
+        if (parent) {
+            const index = parent.children.indexOf(id);
+            if (index > 0) {
+                const prevSiblingId = parent.children[index - 1];
+                moveItem(id, prevSiblingId, 'before');
+                if (selectionStart !== undefined && selectionStart !== null) {
+                    setFocusOffset(selectionStart);
+                }
+            }
+        }
+        return;
+    }
+
+    if (e.key === 'ArrowDown' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        const parent = items[parentId];
+        if (parent) {
+            const index = parent.children.indexOf(id);
+            if (index < parent.children.length - 1) {
+                const nextSiblingId = parent.children[index + 1];
+                moveItem(id, nextSiblingId, 'after');
+                if (selectionStart !== undefined && selectionStart !== null) {
+                    setFocusOffset(selectionStart);
+                }
+            }
+        }
+        return;
     }
 
     if (e.key === 'Enter') {
@@ -535,6 +570,7 @@ const App: React.FC = () => {
           <p>Cmd/Ctrl+Click bullet to collapse/expand</p>
           <p>Drag bullet point to move items</p>
           <p>Tab to indent, Shift+Tab to outdent</p>
+          <p>Cmd+Up/Down to move items</p>
           <p>/t to toggle task</p>
           <p>/b, /i, /u to style</p>
           <p>/1, /2, /3 to resize</p>
