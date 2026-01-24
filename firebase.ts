@@ -9,16 +9,13 @@ import { getFirestore, Firestore } from 'firebase/firestore';
 // ------------------------------------------------------------------
 
 const firebaseConfig = {
-  apiKey: "AIzaSyAK1vMHOprdSmVhtCDfC24I1Gz0vmVxUag",
-  authDomain: "bulletpoints-c92cb.firebaseapp.com",
-  projectId: "bulletpoints-c92cb",
-  storageBucket: "bulletpoints-c92cb.firebasestorage.app",
-  messagingSenderId: "648243282636",
-  appId: "1:648243282636:web:0a78fa4dd5e46491a93869"
+  apiKey: "PASTE_YOUR_API_KEY_HERE",
+  authDomain: "PASTE_YOUR_PROJECT_ID.firebaseapp.com",
+  projectId: "PASTE_YOUR_PROJECT_ID",
+  storageBucket: "PASTE_YOUR_PROJECT_ID.firebasestorage.app",
+  messagingSenderId: "PASTE_SENDER_ID",
+  appId: "PASTE_APP_ID"
 };
-
-
-
 
 let db: Firestore | null = null;
 
@@ -32,7 +29,7 @@ if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "PASTE_YOUR_API_KEY_HERE"
     console.error("Firebase initialization failed:", error);
   }
 } else {
-  console.warn("MinFlow: Firebase config is missing or using placeholders. Falling back to local storage.");
+  console.warn("Bulletpoints: Firebase config is missing or using placeholders. Falling back to local storage.");
 }
 
 export { db };
