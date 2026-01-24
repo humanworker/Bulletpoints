@@ -1,6 +1,8 @@
 
 
 
+
+
 import React, { useRef, useEffect, useState, useLayoutEffect, useCallback } from 'react';
 import { Item, ItemMap, DropPosition } from '../types';
 import { linkifyHtml, setCaretPosition, getCaretCharacterOffsetWithin } from '../utils';
@@ -24,6 +26,7 @@ interface BulletNodeProps {
   onMultiLinePaste: (id: string, parentId: string, text: string, prefix: string, suffix: string) => void;
   onChangeFontSize: (id: string, size: 'small' | 'medium' | 'large') => void;
   onSetIsTask: (id: string, isTask: boolean) => void;
+  onToggleStyle: (id: string, style: 'bold' | 'italic' | 'underline') => void;
   onDelete: (id: string, parentId: string) => void;
 }
 
@@ -46,6 +49,7 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
   onMultiLinePaste,
   onChangeFontSize,
   onSetIsTask,
+  onToggleStyle,
   onDelete,
 }) => {
   const item = items[id];
@@ -114,87 +118,14 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
         const selection = window.getSelection();
         if (!selection || selection.rangeCount === 0) return;
         
-        // This is a simplified "split at cursor" logic for paste, 
-        // similar to existing textarea logic but using textContent approximation for now
-        // or passing the full text to the handler.
-        
-        // For robustness with HTML content, we try to preserve the HTML of the current node
-        // but simple multiline paste usually implies plain text insertion for new items.
-        
-        // 1. Get HTML before cursor
-        const range = selection.getRangeAt(0);
-        const rangeBefore = document.createRange();
-        rangeBefore.setStart(nodeRef.current!, 0);
-        rangeBefore.setEnd(range.startContainer, range.startOffset);
-        
-        // This is tricky with HTML. Let's fallback to the handler which likely does text splitting.
-        // Or better, let's just use the text content for the split to keep it reliable for the clone.
         const prefix = nodeRef.current?.innerText.substring(0, getCaretCharacterOffsetWithin(nodeRef.current!)) || '';
         const suffix = nodeRef.current?.innerText.substring(getCaretCharacterOffsetWithin(nodeRef.current!)) || '';
         
         onMultiLinePaste(id, parentId, text, prefix, suffix);
     }
-    // Else let default paste happen (preserves rich text if copied from HTML, or inserts text)
-  };
-
-  const applyFormat = (command: string) => {
-    if (!nodeRef.current) return;
-    
-    // Check if we need to select all (if collapsed)
-    const sel = window.getSelection();
-    let madeSelection = false;
-    
-    if (sel && sel.isCollapsed && nodeRef.current.contains(sel.anchorNode)) {
-        document.execCommand('selectAll', false, undefined);
-        madeSelection = true;
-    }
-
-    document.execCommand(command, false, undefined);
-    
-    // Trigger update immediately
-    onUpdateText(id, nodeRef.current.innerHTML);
-    
-    // If we selected all, maybe collapse to end to allow typing?
-    // Prompt says: "the whole text ... will have the style applied".
-    // Usually leaving it selected is fine, or user clicks away.
   };
 
   const handleKeyDownWrapper = (e: React.KeyboardEvent) => {
-    // Rich Text Shortcuts
-    if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey) {
-        if (e.key === 'b') {
-            e.preventDefault();
-            applyFormat('bold');
-            return;
-        }
-        if (e.key === 'i') {
-            e.preventDefault();
-            applyFormat('italic');
-            return;
-        }
-        if (e.key === 'u') {
-            e.preventDefault();
-            applyFormat('underline');
-            return;
-        }
-        // Font Size Shortcuts
-        if (e.key === '1') {
-            e.preventDefault();
-            onChangeFontSize(id, 'large');
-            return;
-        }
-        if (e.key === '2') {
-            e.preventDefault();
-            onChangeFontSize(id, 'medium');
-            return;
-        }
-        if (e.key === '3') {
-            e.preventDefault();
-            onChangeFontSize(id, 'small');
-            return;
-        }
-    }
-
     // Split on Enter (but not Cmd+Enter which deletes)
     if (e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
         e.preventDefault();
@@ -234,24 +165,31 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
   const handleInput = (e: React.FormEvent<HTMLDivElement>) => {
     const rawHtml = e.currentTarget.innerHTML;
     
-    // Check for Task Conversion Command (/t)
-    if (rawHtml.includes('/t')) {
-        const cleanHtml = rawHtml.replace(/\/t/g, '');
-        const currentCaret = getCaretCharacterOffsetWithin(nodeRef.current!);
-        // Save caret position adjusted for removed chars
-        restoreCaretRef.current = Math.max(0, currentCaret - 2); 
-        
-        onUpdateText(id, cleanHtml);
-        onSetIsTask(id, !item.isTask);
-        return;
+    // Check for Commands
+    const commands: {cmd: string, action: () => void}[] = [
+        { cmd: '/t', action: () => onSetIsTask(id, !item.isTask) },
+        { cmd: '/b', action: () => onToggleStyle(id, 'bold') },
+        { cmd: '/i', action: () => onToggleStyle(id, 'italic') },
+        { cmd: '/u', action: () => onToggleStyle(id, 'underline') },
+        { cmd: '/1', action: () => onChangeFontSize(id, 'large') },
+        { cmd: '/2', action: () => onChangeFontSize(id, 'medium') },
+        { cmd: '/3', action: () => onChangeFontSize(id, 'small') },
+    ];
+
+    for (const {cmd, action} of commands) {
+        if (rawHtml.includes(cmd)) {
+             const cleanHtml = rawHtml.replace(new RegExp(cmd, 'g'), '');
+             restoreCaretRef.current = Math.max(0, getCaretCharacterOffsetWithin(nodeRef.current!) - cmd.length);
+             onUpdateText(id, cleanHtml);
+             action();
+             return;
+        }
     }
 
     // Auto-linkify logic
     const linkedHtml = linkifyHtml(rawHtml);
     
     if (linkedHtml !== rawHtml) {
-      // If we changed the HTML (added a link), we need to save the caret position
-      // because React will update the DOM via innerHTML, resetting the cursor.
       restoreCaretRef.current = getCaretCharacterOffsetWithin(nodeRef.current!);
       onUpdateText(id, linkedHtml);
     } else {
@@ -349,12 +287,12 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
       wrapperPadding: 'pt-1' 
     },
     'medium': { 
-      text: 'text-2xl leading-8 font-medium', 
+      text: 'text-2xl leading-8', 
       bulletMargin: 'mt-1.5', 
       wrapperPadding: 'pt-4' 
     },
     'large': { 
-      text: 'text-3xl leading-9 font-bold', 
+      text: 'text-3xl leading-9', 
       bulletMargin: 'mt-2', 
       wrapperPadding: 'pt-8' 
     },
@@ -370,6 +308,13 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
   const textColorClass = isHighlighted 
       ? 'text-black dark:text-black' 
       : 'text-gray-800 dark:text-gray-100';
+  
+  let contentClasses = `outline-none py-[2px] break-words ${textColorClass} ${sizeConfig.text} `;
+  contentClasses += item.isBold ? 'font-bold ' : 'font-medium ';
+  if (item.isItalic) contentClasses += 'italic ';
+  if (item.isUnderlined) contentClasses += 'underline ';
+  if (item.collapsed && hasChildren) contentClasses += 'underline decoration-gray-300 dark:decoration-gray-600 ';
+  if (isHighlighted) contentClasses += 'bg-yellow-300 dark:bg-yellow-300 rounded-sm px-1 -ml-1 ';
 
   return (
     <div className="relative">
@@ -441,7 +386,7 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
             onKeyDown={handleKeyDownWrapper}
             onPaste={handlePaste}
             onFocus={() => setFocusedId(id)}
-            className={`outline-none font-medium py-[2px] break-words ${textColorClass} ${sizeConfig.text} ${item.collapsed && hasChildren ? 'underline decoration-gray-300 dark:decoration-gray-600' : ''} ${isHighlighted ? 'bg-yellow-300 dark:bg-yellow-300 rounded-sm px-1 -ml-1' : ''}`}
+            className={contentClasses}
             style={{ minHeight: '24px', display: 'inline-block', minWidth: '1px' }}
           />
         </div>
@@ -470,6 +415,7 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
               onMultiLinePaste={onMultiLinePaste}
               onChangeFontSize={onChangeFontSize}
               onSetIsTask={onSetIsTask}
+              onToggleStyle={onToggleStyle}
               onDelete={onDelete}
             />
           ))}

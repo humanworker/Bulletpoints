@@ -1,6 +1,7 @@
 
 
 
+
 import { useReducer, useEffect, useCallback, useState, useRef } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -303,6 +304,26 @@ const reducer = (state: WorkflowyState, action: Action): WorkflowyState => {
       };
     }
 
+    case 'TOGGLE_STYLE': {
+      const { id, style } = action;
+      if (!items[id]) return state;
+      
+      const propMap = {
+        'bold': 'isBold',
+        'italic': 'isItalic',
+        'underline': 'isUnderlined'
+      };
+      const prop = propMap[style] as keyof Item;
+      
+      return {
+        ...state,
+        items: {
+          ...items,
+          [id]: { ...items[id], [prop]: !items[id][prop] }
+        }
+      };
+    }
+
     default:
       return state;
   }
@@ -520,6 +541,10 @@ export const useBulletpoints = () => {
     dispatch({ type: 'SET_IS_TASK', id, isTask });
   }, []);
 
+  const toggleStyle = useCallback((id: string, style: 'bold' | 'italic' | 'underline') => {
+    dispatch({ type: 'TOGGLE_STYLE', id, style });
+  }, []);
+
   const undo = useCallback(() => {
     dispatch({ type: 'UNDO' });
   }, []);
@@ -544,6 +569,7 @@ export const useBulletpoints = () => {
     moveItems,
     changeFontSize,
     setIsTask,
+    toggleStyle,
     undo,
     redo,
     canUndo: past.length > 0,

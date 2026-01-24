@@ -1,4 +1,6 @@
 
+
+
 import React, { useState, useEffect, useRef, useLayoutEffect, useMemo } from 'react';
 import { useBulletpoints } from './hooks/useBulletpoints';
 import { BulletNode } from './components/BulletNode';
@@ -26,6 +28,7 @@ const App: React.FC = () => {
     moveItems,
     changeFontSize,
     setIsTask,
+    toggleStyle,
     undo,
     redo,
     canUndo,
@@ -501,6 +504,7 @@ const App: React.FC = () => {
                     onMultiLinePaste={handleMultiLinePaste}
                     onChangeFontSize={changeFontSize}
                     onSetIsTask={setIsTask}
+                    onToggleStyle={toggleStyle}
                     onDelete={deleteItem}
                   />
                 ))}
@@ -530,10 +534,10 @@ const App: React.FC = () => {
           <p>Click & Drag background to select items</p>
           <p>Cmd/Ctrl+Click bullet to collapse/expand</p>
           <p>Drag bullet point to move items</p>
-          <p>Type /t to turn item into task</p>
           <p>Tab to indent, Shift+Tab to outdent</p>
-          <p>Cmd+B/I/U to format text</p>
-          <p>Cmd+1/2/3 to change text size</p>
+          <p>/t to toggle task</p>
+          <p>/b, /i, /u to style</p>
+          <p>/1, /2, /3 to resize</p>
         </div>
         )}
       </div>
