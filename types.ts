@@ -8,6 +8,7 @@ export interface Item {
   collapsed: boolean;
   fontSize?: 'small' | 'medium' | 'large';
   isTask?: boolean;
+  isShortcut?: boolean;
   isBold?: boolean;
   isItalic?: boolean;
   isUnderlined?: boolean;
@@ -39,6 +40,7 @@ export type Action =
   | { type: 'LOAD_STATE'; state: WorkflowyState }
   | { type: 'CHANGE_FONT_SIZE'; id: string; size: 'small' | 'medium' | 'large' }
   | { type: 'SET_IS_TASK'; id: string; isTask: boolean }
+  | { type: 'TOGGLE_IS_SHORTCUT'; id: string }
   | { type: 'TOGGLE_STYLE'; id: string; style: 'bold' | 'italic' | 'underline' }
   | { type: 'UNDO' }
   | { type: 'REDO' };

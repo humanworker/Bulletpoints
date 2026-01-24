@@ -1,8 +1,10 @@
+
 import React, { useState, useEffect, useRef, useLayoutEffect, useMemo } from 'react';
 import { useBulletpoints } from './hooks/useBulletpoints';
 import { BulletNode } from './components/BulletNode';
 import { Breadcrumbs } from './components/Breadcrumbs';
 import { TasksPane } from './components/TasksPane';
+import { ShortcutsPane } from './components/ShortcutsPane';
 import { MobileToolbar } from './components/MobileToolbar';
 import { INITIAL_ROOT_ID, getVisibleFlatList, generateId, stripHtml, exportToText, getCaretCharacterOffsetWithin, setCaretPosition } from './utils';
 import { Capacitor } from '@capacitor/core';
@@ -26,6 +28,7 @@ const App: React.FC = () => {
     moveItems,
     changeFontSize,
     setIsTask,
+    toggleIsShortcut,
     toggleStyle,
     undo,
     redo,
@@ -40,6 +43,7 @@ const App: React.FC = () => {
   // View State
   const [currentRootId, setCurrentRootId] = useState<string>(INITIAL_ROOT_ID);
   const [showTasksPane, setShowTasksPane] = useState(false);
+  const [showShortcutsPane, setShowShortcutsPane] = useState(false);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
 
   // Clear highlight effect
@@ -66,9 +70,9 @@ const App: React.FC = () => {
   }, [currentRootId, items]);
 
   // View Navigation Helpers
-  const handleNavigateToTask = (parentId: string, taskId: string) => {
+  const handleNavigateToItem = (parentId: string, itemId: string) => {
     setCurrentRootId(parentId);
-    setHighlightedId(taskId);
+    setHighlightedId(itemId);
   };
 
   // Reset scroll when changing views
@@ -499,6 +503,8 @@ const App: React.FC = () => {
                   onExport={Capacitor.getPlatform() === 'android' ? undefined : handleExport}
                   showTasksPane={showTasksPane}
                   onToggleTasksPane={() => setShowTasksPane(!showTasksPane)}
+                  showShortcutsPane={showShortcutsPane}
+                  onToggleShortcutsPane={() => setShowShortcutsPane(!showShortcutsPane)}
               />
           </div>
         </div>
@@ -507,8 +513,16 @@ const App: React.FC = () => {
         {showTasksPane && (
             <TasksPane 
                 items={items} 
-                onNavigate={handleNavigateToTask}
+                onNavigate={handleNavigateToItem}
                 onCompleteTask={deleteItem}
+            />
+        )}
+        
+        {/* Shortcuts Pane */}
+        {showShortcutsPane && (
+            <ShortcutsPane 
+                items={items} 
+                onNavigate={handleZoom}
             />
         )}
 
@@ -576,6 +590,7 @@ const App: React.FC = () => {
                     onMultiLinePaste={handleMultiLinePaste}
                     onChangeFontSize={changeFontSize}
                     onSetIsTask={setIsTask}
+                    onToggleIsShortcut={toggleIsShortcut}
                     onToggleStyle={toggleStyle}
                     onDelete={deleteItem}
                   />
@@ -609,6 +624,7 @@ const App: React.FC = () => {
           <p>Tab to indent, Shift+Tab to outdent</p>
           <p>Cmd+Up/Down to move items</p>
           <p>/t to toggle task</p>
+          <p>/s to toggle shortcut</p>
           <p>/b, /i, /u to style</p>
           <p>/1, /2, /3 to resize</p>
         </div>

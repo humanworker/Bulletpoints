@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect, useState, useLayoutEffect, useCallback } from 'react';
 import { Item, ItemMap, DropPosition } from '../types';
 import { linkifyHtml, setCaretPosition, getCaretCharacterOffsetWithin } from '../utils';
@@ -21,6 +22,7 @@ interface BulletNodeProps {
   onMultiLinePaste: (id: string, parentId: string, text: string, prefix: string, suffix: string) => void;
   onChangeFontSize: (id: string, size: 'small' | 'medium' | 'large') => void;
   onSetIsTask: (id: string, isTask: boolean) => void;
+  onToggleIsShortcut: (id: string) => void;
   onToggleStyle: (id: string, style: 'bold' | 'italic' | 'underline') => void;
   onDelete: (id: string, parentId: string) => void;
 }
@@ -44,6 +46,7 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
   onMultiLinePaste,
   onChangeFontSize,
   onSetIsTask,
+  onToggleIsShortcut,
   onToggleStyle,
   onDelete,
 }) => {
@@ -181,6 +184,7 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
         { cmd: '/1', action: () => onChangeFontSize(id, 'large') },
         { cmd: '/2', action: () => onChangeFontSize(id, 'medium') },
         { cmd: '/3', action: () => onChangeFontSize(id, 'small') },
+        { cmd: '/s', action: () => onToggleIsShortcut(id) },
     ];
 
     for (const {cmd, action} of commands) {
@@ -314,7 +318,9 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
 
   const textColorClass = isHighlighted 
       ? 'text-black dark:text-black' 
-      : 'text-gray-800 dark:text-gray-100';
+      : item.isShortcut
+        ? 'text-yellow-700 dark:text-yellow-500'
+        : 'text-gray-800 dark:text-gray-100';
   
   let contentClasses = `outline-none py-[2px] break-words ${textColorClass} ${sizeConfig.text} `;
   contentClasses += item.isBold ? 'font-bold ' : 'font-medium ';
@@ -422,6 +428,7 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
               onMultiLinePaste={onMultiLinePaste}
               onChangeFontSize={onChangeFontSize}
               onSetIsTask={onSetIsTask}
+              onToggleIsShortcut={onToggleIsShortcut}
               onToggleStyle={onToggleStyle}
               onDelete={onDelete}
             />

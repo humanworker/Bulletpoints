@@ -1,7 +1,5 @@
 
 
-
-
 import { useReducer, useEffect, useCallback, useState, useRef } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -39,6 +37,7 @@ const reducer = (state: WorkflowyState, action: Action): WorkflowyState => {
         collapsed: false,
         fontSize: 'small',
         isTask: false,
+        isShortcut: false,
       };
 
       newItems[newId] = newItem;
@@ -304,6 +303,18 @@ const reducer = (state: WorkflowyState, action: Action): WorkflowyState => {
       };
     }
 
+    case 'TOGGLE_IS_SHORTCUT': {
+      const { id } = action;
+      if (!items[id]) return state;
+      return {
+        ...state,
+        items: {
+          ...items,
+          [id]: { ...items[id], isShortcut: !items[id].isShortcut },
+        },
+      };
+    }
+
     case 'TOGGLE_STYLE': {
       const { id, style } = action;
       if (!items[id]) return state;
@@ -540,6 +551,10 @@ export const useBulletpoints = () => {
   const setIsTask = useCallback((id: string, isTask: boolean) => {
     dispatch({ type: 'SET_IS_TASK', id, isTask });
   }, []);
+  
+  const toggleIsShortcut = useCallback((id: string) => {
+    dispatch({ type: 'TOGGLE_IS_SHORTCUT', id });
+  }, []);
 
   const toggleStyle = useCallback((id: string, style: 'bold' | 'italic' | 'underline') => {
     dispatch({ type: 'TOGGLE_STYLE', id, style });
@@ -569,6 +584,7 @@ export const useBulletpoints = () => {
     moveItems,
     changeFontSize,
     setIsTask,
+    toggleIsShortcut,
     toggleStyle,
     undo,
     redo,

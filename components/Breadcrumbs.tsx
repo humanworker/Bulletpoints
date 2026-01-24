@@ -1,4 +1,5 @@
 
+
 import React, { useRef, useState, useEffect } from 'react';
 import { ItemMap, Item } from '../types';
 import { stripHtml } from '../utils';
@@ -17,6 +18,8 @@ interface BreadcrumbsProps {
   onExport?: () => void;
   showTasksPane?: boolean;
   onToggleTasksPane?: () => void;
+  showShortcutsPane?: boolean;
+  onToggleShortcutsPane?: () => void;
 }
 
 export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
@@ -33,6 +36,8 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
   onExport,
   showTasksPane,
   onToggleTasksPane,
+  showShortcutsPane,
+  onToggleShortcutsPane,
 }) => {
   const path: Item[] = [];
   let curr: string | null = currentRootId;
@@ -182,6 +187,17 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
                 </button>
             )}
 
+            {onToggleShortcutsPane && (
+                <button 
+                    className="hidden md:block font-bold text-gray-900 hover:text-gray-600 dark:text-gray-100 dark:hover:text-gray-300 transition-colors cursor-pointer"
+                    onClick={() => {
+                        onToggleShortcutsPane();
+                    }}
+                >
+                    {showShortcutsPane ? 'Hide Shortcuts' : 'Show Shortcuts'}
+                </button>
+            )}
+
             {onToggleHelp && (
                 <button 
                     className="hidden md:block font-bold text-gray-900 hover:text-gray-600 dark:text-gray-100 dark:hover:text-gray-300 transition-colors cursor-pointer"
@@ -200,7 +216,7 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
                       onToggleTheme();
                     }}
                 >
-                    {isDarkMode ? 'Light Theme' : 'Dark Theme'}
+                    {isDarkMode ? 'Light' : 'Dark'}
                 </button>
             )}
 
