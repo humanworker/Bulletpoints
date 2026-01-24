@@ -50,6 +50,21 @@ const App: React.FC = () => {
     }
   }, [highlightedId]);
 
+  // Update Document Title
+  useEffect(() => {
+    if (currentRootId === INITIAL_ROOT_ID) {
+      document.title = 'Bulletpoints';
+    } else {
+      const rootItem = items[currentRootId];
+      if (rootItem) {
+        const plainText = stripHtml(rootItem.text).trim();
+        document.title = plainText || 'Untitled';
+      } else {
+        document.title = 'Bulletpoints';
+      }
+    }
+  }, [currentRootId, items]);
+
   // View Navigation Helpers
   const handleNavigateToTask = (parentId: string, taskId: string) => {
     setCurrentRootId(parentId);
