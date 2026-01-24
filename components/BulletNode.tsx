@@ -1,7 +1,9 @@
 
+
+
 import React, { useRef, useEffect, useState, useLayoutEffect, useCallback } from 'react';
 import { Item, ItemMap, DropPosition } from '../types';
-import { linkifyHtml } from '../utils';
+import { linkifyHtml, setCaretPosition, getCaretCharacterOffsetWithin } from '../utils';
 
 interface BulletNodeProps {
   id: string;
@@ -24,39 +26,6 @@ interface BulletNodeProps {
   onSetIsTask: (id: string, isTask: boolean) => void;
   onDelete: (id: string, parentId: string) => void;
 }
-
-// Helper to set cursor at specific character offset within a contentEditable element
-const setCaretPosition = (root: HTMLElement, offset: number) => {
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
-  let node = walker.nextNode();
-  let currentOffset = 0;
-  let found = false;
-
-  const selection = window.getSelection();
-  const range = document.createRange();
-
-  while (node) {
-    const length = node.nodeValue?.length || 0;
-    if (currentOffset + length >= offset) {
-      range.setStart(node, offset - currentOffset);
-      range.collapse(true);
-      selection?.removeAllRanges();
-      selection?.addRange(range);
-      found = true;
-      break;
-    }
-    currentOffset += length;
-    node = walker.nextNode();
-  }
-
-  // If offset is greater than content length, move to end
-  if (!found) {
-    range.selectNodeContents(root);
-    range.collapse(false);
-    selection?.removeAllRanges();
-    selection?.addRange(range);
-  }
-};
 
 export const BulletNode: React.FC<BulletNodeProps> = ({
   id,
@@ -167,22 +136,6 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
     }
     // Else let default paste happen (preserves rich text if copied from HTML, or inserts text)
   };
-
-  // Helper to get caret text offset
-  function getCaretCharacterOffsetWithin(element: HTMLElement) {
-    let caretOffset = 0;
-    const doc = element.ownerDocument || document;
-    const win = doc.defaultView || window;
-    const sel = win?.getSelection();
-    if (sel && sel.rangeCount > 0) {
-      const range = sel.getRangeAt(0);
-      const preCaretRange = range.cloneRange();
-      preCaretRange.selectNodeContents(element);
-      preCaretRange.setEnd(range.endContainer, range.endOffset);
-      caretOffset = preCaretRange.toString().length;
-    }
-    return caretOffset;
-  }
 
   const applyFormat = (command: string) => {
     if (!nodeRef.current) return;

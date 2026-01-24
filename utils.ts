@@ -1,6 +1,7 @@
 
 
 
+
 import { ItemMap, WorkflowyState } from './types';
 
 export const generateId = (): string => {
@@ -196,4 +197,53 @@ export const exportToText = (items: ItemMap, rootId: string): string => {
   }
   
   return output.trim();
+};
+
+// Helper to set cursor at specific character offset within a contentEditable element
+export const setCaretPosition = (root: HTMLElement, offset: number) => {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+  let node = walker.nextNode();
+  let currentOffset = 0;
+  let found = false;
+
+  const selection = window.getSelection();
+  const range = document.createRange();
+
+  while (node) {
+    const length = node.nodeValue?.length || 0;
+    if (currentOffset + length >= offset) {
+      range.setStart(node, offset - currentOffset);
+      range.collapse(true);
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+      found = true;
+      break;
+    }
+    currentOffset += length;
+    node = walker.nextNode();
+  }
+
+  // If offset is greater than content length, move to end
+  if (!found) {
+    range.selectNodeContents(root);
+    range.collapse(false);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+  }
+};
+
+// Helper to get caret text offset
+export const getCaretCharacterOffsetWithin = (element: HTMLElement) => {
+  let caretOffset = 0;
+  const doc = element.ownerDocument || document;
+  const win = doc.defaultView || window;
+  const sel = win?.getSelection();
+  if (sel && sel.rangeCount > 0) {
+    const range = sel.getRangeAt(0);
+    const preCaretRange = range.cloneRange();
+    preCaretRange.selectNodeContents(element);
+    preCaretRange.setEnd(range.endContainer, range.endOffset);
+    caretOffset = preCaretRange.toString().length;
+  }
+  return caretOffset;
 };

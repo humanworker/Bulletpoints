@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect, useRef, useLayoutEffect, useMemo } from 'react';
 import { useBulletpoints } from './hooks/useBulletpoints';
 import { BulletNode } from './components/BulletNode';
 import { Breadcrumbs } from './components/Breadcrumbs';
-import { INITIAL_ROOT_ID, getVisibleFlatList, generateId, stripHtml, findParentId, exportToText } from './utils';
+import { INITIAL_ROOT_ID, getVisibleFlatList, generateId, stripHtml, findParentId, exportToText, getCaretCharacterOffsetWithin, setCaretPosition } from './utils';
 import { Capacitor } from '@capacitor/core';
 import { Item } from './types';
 
@@ -170,6 +169,10 @@ const App: React.FC = () => {
   // Delete Confirmation Logic
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const deleteTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Title Logic
+  const titleRef = useRef<HTMLDivElement>(null);
+  const restoreTitleCaretRef = useRef<number | null>(null);
 
   // Track the last time we were successfully saved
   useEffect(() => {
@@ -545,6 +548,53 @@ const App: React.FC = () => {
     }
   }, [items, currentRootId]);
 
+  // --- Title Handling ---
+  
+  const handleTitleInput = (e: React.FormEvent<HTMLDivElement>) => {
+      const rawHtml = e.currentTarget.innerHTML;
+      restoreTitleCaretRef.current = getCaretCharacterOffsetWithin(e.currentTarget);
+      updateText(currentRootId, rawHtml);
+  };
+
+  const handleTitleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (e.key === 'Enter') {
+          e.preventDefault();
+          const newId = generateId();
+          // Add to top of list
+          addItem(currentRootId, null, newId);
+          setFocusedId(newId);
+      } else if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          // Move focus to first item
+          if (rootItem && rootItem.children.length > 0) {
+              setFocusedId(rootItem.children[0]);
+          }
+      }
+  };
+
+  // Focus effect for title
+  useEffect(() => {
+    if (focusedId === currentRootId && titleRef.current) {
+        titleRef.current.focus();
+        // Restore caret if needed, otherwise end?
+        if (restoreTitleCaretRef.current !== null) {
+            setCaretPosition(titleRef.current, restoreTitleCaretRef.current);
+            restoreTitleCaretRef.current = null;
+        } 
+    }
+  }, [focusedId, currentRootId]);
+
+  // Layout Effect for text sync (external updates or re-renders)
+  useLayoutEffect(() => {
+      if (titleRef.current && rootItem && titleRef.current.innerHTML !== rootItem.text) {
+          titleRef.current.innerHTML = rootItem.text;
+          if (focusedId === currentRootId && restoreTitleCaretRef.current !== null) {
+             setCaretPosition(titleRef.current, restoreTitleCaretRef.current);
+          }
+      }
+  }, [rootItem?.text, focusedId, currentRootId]);
+
+
   // --- Mobile Toolbar Logic ---
 
   const mobileActionStates = React.useMemo(() => {
@@ -794,11 +844,21 @@ const App: React.FC = () => {
             {rootItem && (
               <div className="pl-1">
                 {currentRootId !== INITIAL_ROOT_ID && (
-                  <h1 className="text-3xl font-bold mb-6 text-gray-900 dark:text-gray-100 outline-none"
-                      onClick={(e) => { e.stopPropagation(); setFocusedId(currentRootId); setSelectedIds(new Set()); }}
-                  >
-                    {stripHtml(rootItem.text)}
-                  </h1>
+                  <div 
+                    ref={titleRef}
+                    contentEditable
+                    suppressContentEditableWarning
+                    className="text-3xl font-bold mb-6 text-gray-900 dark:text-gray-100 outline-none break-words empty:before:content-[attr(data-placeholder)] empty:before:text-gray-400"
+                    data-placeholder="Untitled"
+                    onInput={handleTitleInput}
+                    onKeyDown={handleTitleKeyDown}
+                    onFocus={() => setFocusedId(currentRootId)}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setFocusedId(currentRootId);
+                        setSelectedIds(new Set());
+                    }}
+                  />
                 )}
 
                 {rootItem.children.length === 0 && (
