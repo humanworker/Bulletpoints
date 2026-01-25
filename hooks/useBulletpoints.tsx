@@ -1,10 +1,8 @@
-
-
 import { useReducer, useEffect, useCallback, useState, useRef } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { WorkflowyState, Action, DropPosition, SaveStatus, Item } from '../types';
-import { generateId, getDefaultState, findParentId, isAncestor, getUserDocId } from '../utils';
+import { generateId, getDefaultState, findParentId, isAncestor, getUserDocId, parseImportText } from '../utils';
 
 // Internal history state wrapper
 interface HistoryState {
@@ -568,6 +566,11 @@ export const useBulletpoints = () => {
     dispatch({ type: 'REDO' });
   }, []);
 
+  const importFromText = useCallback((text: string) => {
+      const newState = parseImportText(text);
+      dispatch({ type: 'LOAD_STATE', state: newState });
+  }, []);
+
   return {
     loading,
     saveStatus,
@@ -591,5 +594,6 @@ export const useBulletpoints = () => {
     canUndo: past.length > 0,
     canRedo: future.length > 0,
     refreshData,
+    importFromText,
   };
 };

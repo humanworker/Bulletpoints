@@ -14,6 +14,7 @@ interface BreadcrumbsProps {
   showHelp?: boolean;
   onToggleHelp?: () => void;
   onExport?: () => void;
+  onImport?: () => void;
   showTasksPane?: boolean;
   onToggleTasksPane?: () => void;
   showShortcutsPane?: boolean;
@@ -32,6 +33,7 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
   showHelp,
   onToggleHelp,
   onExport,
+  onImport,
   showTasksPane,
   onToggleTasksPane,
   showShortcutsPane,
@@ -227,6 +229,18 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
                     }}
                 >
                     Export
+                </button>
+            )}
+
+            {onImport && (
+                <button 
+                    className="font-bold text-gray-900 hover:text-gray-600 dark:text-gray-100 dark:hover:text-gray-300 transition-colors cursor-pointer"
+                    onClick={() => {
+                        onImport();
+                        setIsMenuOpen(false);
+                    }}
+                >
+                    Import
                 </button>
             )}
         </div>

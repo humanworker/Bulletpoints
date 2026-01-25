@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useRef, useLayoutEffect, useMemo } from 'react';
 import { useBulletpoints } from './hooks/useBulletpoints';
 import { BulletNode } from './components/BulletNode';
@@ -7,6 +5,7 @@ import { Breadcrumbs } from './components/Breadcrumbs';
 import { TasksPane } from './components/TasksPane';
 import { ShortcutsPane } from './components/ShortcutsPane';
 import { MobileToolbar } from './components/MobileToolbar';
+import { ImportModal } from './components/ImportModal';
 import { INITIAL_ROOT_ID, getVisibleFlatList, generateId, stripHtml, exportToText, getCaretCharacterOffsetWithin, setCaretPosition } from './utils';
 import { Capacitor } from '@capacitor/core';
 import { useTheme } from './hooks/useTheme';
@@ -35,7 +34,8 @@ const App: React.FC = () => {
     redo,
     canUndo,
     canRedo,
-    refreshData
+    refreshData,
+    importFromText
   } = useBulletpoints();
   
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -45,6 +45,7 @@ const App: React.FC = () => {
   const [currentRootId, setCurrentRootId] = useState<string>(INITIAL_ROOT_ID);
   const [showTasksPane, setShowTasksPane] = useState(false);
   const [showShortcutsPane, setShowShortcutsPane] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
 
   // Clear highlight effect
@@ -507,6 +508,7 @@ const App: React.FC = () => {
                   showHelp={showHelp}
                   onToggleHelp={toggleHelp}
                   onExport={Capacitor.getPlatform() === 'android' ? undefined : handleExport}
+                  onImport={() => setShowImportModal(true)}
                   showTasksPane={showTasksPane}
                   onToggleTasksPane={() => setShowTasksPane(!showTasksPane)}
                   showShortcutsPane={showShortcutsPane}
@@ -531,6 +533,13 @@ const App: React.FC = () => {
                 onNavigate={handleZoom}
             />
         )}
+
+        {/* Import Modal */}
+        <ImportModal 
+            isOpen={showImportModal} 
+            onClose={() => setShowImportModal(false)} 
+            onImport={importFromText}
+        />
 
         {/* Main Content Area */}
         <div 

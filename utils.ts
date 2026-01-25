@@ -1,8 +1,4 @@
-
-
-
-
-import { ItemMap, WorkflowyState } from './types';
+import { ItemMap, WorkflowyState, Item } from './types';
 
 export const generateId = (): string => {
   return Math.random().toString(36).substr(2, 9);
@@ -197,6 +193,68 @@ export const exportToText = (items: ItemMap, rootId: string): string => {
   }
   
   return output.trim();
+};
+
+export const parseImportText = (text: string): WorkflowyState => {
+  const rootId = INITIAL_ROOT_ID;
+  const items: ItemMap = {
+    [rootId]: {
+      id: rootId,
+      text: 'Home',
+      children: [],
+      isCompleted: false,
+      collapsed: false,
+      isTask: false,
+    }
+  };
+  
+  const lines = text.split(/\r?\n/);
+  // Stack of parent IDs. index 0 = root.
+  const parentStack = [rootId]; 
+  
+  lines.forEach(line => {
+    // Skip entirely empty lines that might result from trailing newlines
+    if (!line.trim() && line.length === 0) return;
+    
+    // Determine depth by counting leading hyphens
+    const match = line.match(/^(-*)/);
+    const depth = match ? match[1].length : 0;
+    
+    // Get content
+    const content = line.substring(depth);
+    
+    // Generate Item
+    const id = generateId();
+    const newItem: Item = {
+      id,
+      text: content,
+      children: [],
+      isCompleted: false,
+      collapsed: false,
+      fontSize: 'small',
+      isTask: false,
+    };
+    items[id] = newItem;
+    
+    // Find parent
+    // If depth is 0, parent is root (stack[0]).
+    // If depth is 1, parent is last item at depth 0 (stack[1]).
+    let parentIndex = depth;
+    if (parentIndex >= parentStack.length) {
+        parentIndex = parentStack.length - 1;
+    }
+    const parentId = parentStack[parentIndex];
+    
+    if (items[parentId]) {
+        items[parentId].children.push(id);
+    }
+    
+    // Prepare for children of this item (which will be at depth + 1)
+    parentStack[depth + 1] = id;
+    parentStack.length = depth + 2; 
+  });
+  
+  return { items, rootId };
 };
 
 // Helper to set cursor at specific character offset within a contentEditable element

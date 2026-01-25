@@ -1,4 +1,3 @@
-
 import { useState, useRef, useCallback } from 'react';
 
 interface SelectionRect {
@@ -25,7 +24,9 @@ export const useMarqueeSelection = (
         target.closest('[contenteditable]') || 
         target.closest('.cursor-move') || 
         target.closest('button') || 
-        target.closest('a')
+        target.closest('a') ||
+        target.closest('input') ||
+        target.closest('textarea')
     ) {
       return;
     }
