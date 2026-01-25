@@ -25,7 +25,7 @@ export interface WorkflowyState {
 
 export type DropPosition = 'before' | 'after' | 'inside';
 
-export type SaveStatus = 'saved' | 'saving' | 'error';
+export type SaveStatus = 'saved' | 'saving' | 'error' | 'saved-local';
 
 export type Action =
   | { type: 'ADD_ITEM'; afterId: string | null; parentId: string; newId?: string }

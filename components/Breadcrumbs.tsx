@@ -1,5 +1,3 @@
-
-
 import React, { useRef, useState, useEffect } from 'react';
 import { ItemMap, Item } from '../types';
 import { stripHtml } from '../utils';
@@ -178,34 +176,34 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
         <div className="ml-auto flex items-center gap-4 bg-gray-50 dark:bg-gray-900 pl-4">
             {onToggleTasksPane && (
                 <button 
-                    className="hidden md:block font-bold text-gray-900 hover:text-gray-600 dark:text-gray-100 dark:hover:text-gray-300 transition-colors cursor-pointer"
+                    className={`hidden md:block font-bold transition-colors cursor-pointer ${showTasksPane ? 'text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300' : 'text-gray-900 hover:text-gray-600 dark:text-gray-100 dark:hover:text-gray-300'}`}
                     onClick={() => {
                         onToggleTasksPane();
                     }}
                 >
-                    {showTasksPane ? 'Hide Tasks' : 'Show Tasks'}
+                    Tasks
                 </button>
             )}
 
             {onToggleShortcutsPane && (
                 <button 
-                    className="hidden md:block font-bold text-gray-900 hover:text-gray-600 dark:text-gray-100 dark:hover:text-gray-300 transition-colors cursor-pointer"
+                    className={`hidden md:block font-bold transition-colors cursor-pointer ${showShortcutsPane ? 'text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300' : 'text-gray-900 hover:text-gray-600 dark:text-gray-100 dark:hover:text-gray-300'}`}
                     onClick={() => {
                         onToggleShortcutsPane();
                     }}
                 >
-                    {showShortcutsPane ? 'Hide Shortcuts' : 'Show Shortcuts'}
+                    Shortcuts
                 </button>
             )}
 
             {onToggleHelp && (
                 <button 
-                    className="hidden md:block font-bold text-gray-900 hover:text-gray-600 dark:text-gray-100 dark:hover:text-gray-300 transition-colors cursor-pointer"
+                    className={`hidden md:block font-bold transition-colors cursor-pointer ${showHelp ? 'text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300' : 'text-gray-900 hover:text-gray-600 dark:text-gray-100 dark:hover:text-gray-300'}`}
                     onClick={() => {
                         onToggleHelp();
                     }}
                 >
-                    {showHelp ? 'Hide Help' : 'Show Help'}
+                    Help
                 </button>
             )}
             

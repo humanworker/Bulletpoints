@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef, useLayoutEffect, useMemo } from 'react';
 import { useBulletpoints } from './hooks/useBulletpoints';
 import { BulletNode } from './components/BulletNode';
@@ -19,7 +20,7 @@ const App: React.FC = () => {
     items, 
     addItem, 
     updateText, 
-    deleteItem,
+    deleteItem, 
     mergeUp,
     indent, 
     outdent, 
@@ -148,7 +149,7 @@ const App: React.FC = () => {
   const restoreTitleCaretRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (saveStatus === 'saved') {
+    if (saveStatus === 'saved' || saveStatus === 'saved-local') {
       lastSavedTimeRef.current = Date.now();
     }
   }, [saveStatus]);
@@ -164,6 +165,11 @@ const App: React.FC = () => {
       } else {
         setRootStatusColor('');
       }
+    } else if (saveStatus === 'saved-local') {
+       if (!loading) {
+         // Show amber to indicate local-only/offline mode
+         setRootStatusColor('text-amber-500 dark:text-amber-400');
+       }
     } else if (saveStatus === 'saving') {
       const elapsed = Date.now() - lastSavedTimeRef.current;
       if (elapsed < 60000) {
@@ -177,7 +183,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      if (saveStatus !== 'saved') {
+      if (saveStatus !== 'saved' && saveStatus !== 'saved-local') {
         const elapsed = Date.now() - lastSavedTimeRef.current;
         if (elapsed > 60000) {
           setRootStatusColor('text-red-600');

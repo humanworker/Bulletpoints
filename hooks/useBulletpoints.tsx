@@ -500,7 +500,7 @@ export const useBulletpoints = () => {
           setSaveStatus('error');
         }
       } else {
-        setSaveStatus('saved'); // Local storage only is still "saved"
+        setSaveStatus('saved-local'); // Explicit status for local-only save
       }
     };
 
