@@ -54,11 +54,21 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
   const nodeRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const restoreCaretRef = useRef<number | null>(null);
+  const commandTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [dragOverPosition, setDragOverPosition] = useState<DropPosition | null>(null);
 
   const isSelected = selectedIds.has(id);
   const isFocused = focusedId === id;
   const isHighlighted = highlightedId === id;
+
+  // Cleanup command timeout
+  useEffect(() => {
+    return () => {
+      if (commandTimeoutRef.current) {
+        clearTimeout(commandTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Scroll into view if highlighted
   useEffect(() => {
@@ -174,30 +184,14 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
 
   const handleInput = (e: React.FormEvent<HTMLDivElement>) => {
     const rawHtml = e.currentTarget.innerHTML;
-    
-    // Check for Commands
-    const commands: {cmd: string, action: () => void}[] = [
-        { cmd: '/t', action: () => onSetIsTask(id, !item.isTask) },
-        { cmd: '/b', action: () => onToggleStyle(id, 'bold') },
-        { cmd: '/i', action: () => onToggleStyle(id, 'italic') },
-        { cmd: '/u', action: () => onToggleStyle(id, 'underline') },
-        { cmd: '/1', action: () => onChangeFontSize(id, 'large') },
-        { cmd: '/2', action: () => onChangeFontSize(id, 'medium') },
-        { cmd: '/3', action: () => onChangeFontSize(id, 'small') },
-        { cmd: '/s', action: () => onToggleIsShortcut(id) },
-    ];
 
-    for (const {cmd, action} of commands) {
-        if (rawHtml.includes(cmd)) {
-             const cleanHtml = rawHtml.replace(new RegExp(cmd, 'g'), '');
-             restoreCaretRef.current = Math.max(0, getCaretCharacterOffsetWithin(nodeRef.current!) - cmd.length);
-             onUpdateText(id, cleanHtml);
-             action();
-             return;
-        }
+    // Clear any pending command check (debounce)
+    if (commandTimeoutRef.current) {
+        clearTimeout(commandTimeoutRef.current);
+        commandTimeoutRef.current = null;
     }
 
-    // Auto-linkify logic
+    // Auto-linkify logic - Update text immediately
     const linkedHtml = linkifyHtml(rawHtml);
     
     if (linkedHtml !== rawHtml) {
@@ -206,6 +200,51 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
     } else {
       onUpdateText(id, rawHtml);
     }
+
+    // Schedule delayed command check (1 second)
+    commandTimeoutRef.current = setTimeout(() => {
+        if (!nodeRef.current) return;
+        const currentHtml = nodeRef.current.innerHTML;
+
+        const commands: {cmd: string, action: () => void}[] = [
+            { cmd: '/t', action: () => onSetIsTask(id, !item.isTask) },
+            { cmd: '/b', action: () => onToggleStyle(id, 'bold') },
+            { cmd: '/i', action: () => onToggleStyle(id, 'italic') },
+            { cmd: '/u', action: () => onToggleStyle(id, 'underline') },
+            { cmd: '/1', action: () => onChangeFontSize(id, 'large') },
+            { cmd: '/2', action: () => onChangeFontSize(id, 'medium') },
+            { cmd: '/3', action: () => onChangeFontSize(id, 'small') },
+            { cmd: '/s', action: () => onToggleIsShortcut(id) },
+        ];
+
+        for (const {cmd, action} of commands) {
+             let matchLength = 0;
+             if (currentHtml.endsWith(cmd)) {
+                matchLength = cmd.length;
+             } else if (currentHtml.endsWith(cmd + '&nbsp;')) {
+                matchLength = cmd.length + 6;
+             } else if (currentHtml.endsWith(cmd + ' ')) {
+                matchLength = cmd.length + 1;
+             }
+
+             if (matchLength > 0) {
+                 const cleanHtml = currentHtml.substring(0, currentHtml.length - matchLength);
+                 
+                 // Valid predecessors: Start of string, Space, Non-breaking space
+                 // This prevents commands from triggering inside words or URLs (e.g. house/igloo, http://site.com/1)
+                 const isValidTrigger = cleanHtml.length === 0 || 
+                                        cleanHtml.endsWith(' ') || 
+                                        cleanHtml.endsWith('&nbsp;');
+
+                 if (isValidTrigger) {
+                     restoreCaretRef.current = Math.max(0, getCaretCharacterOffsetWithin(nodeRef.current!) - cmd.length);
+                     onUpdateText(id, cleanHtml);
+                     action();
+                     return;
+                 }
+            }
+        }
+    }, 1000);
   };
 
   const handleContentClick = (e: React.MouseEvent) => {
