@@ -43,10 +43,41 @@ const App: React.FC = () => {
 
   // View State
   const [currentRootId, setCurrentRootId] = useState<string>(INITIAL_ROOT_ID);
-  const [showTasksPane, setShowTasksPane] = useState(false);
-  const [showShortcutsPane, setShowShortcutsPane] = useState(false);
+
+  const [showTasksPane, setShowTasksPane] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('bulletpoints-show-tasks') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const [showShortcutsPane, setShowShortcutsPane] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('bulletpoints-show-shortcuts') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
   const [showImportModal, setShowImportModal] = useState(false);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
+
+  const toggleTasksPane = () => {
+    setShowTasksPane(prev => {
+      const newValue = !prev;
+      localStorage.setItem('bulletpoints-show-tasks', String(newValue));
+      return newValue;
+    });
+  };
+
+  const toggleShortcutsPane = () => {
+    setShowShortcutsPane(prev => {
+      const newValue = !prev;
+      localStorage.setItem('bulletpoints-show-shortcuts', String(newValue));
+      return newValue;
+    });
+  };
 
   // Clear highlight effect
   useEffect(() => {
@@ -510,9 +541,9 @@ const App: React.FC = () => {
                   onExport={Capacitor.getPlatform() === 'android' ? undefined : handleExport}
                   onImport={() => setShowImportModal(true)}
                   showTasksPane={showTasksPane}
-                  onToggleTasksPane={() => setShowTasksPane(!showTasksPane)}
+                  onToggleTasksPane={toggleTasksPane}
                   showShortcutsPane={showShortcutsPane}
-                  onToggleShortcutsPane={() => setShowShortcutsPane(!showShortcutsPane)}
+                  onToggleShortcutsPane={toggleShortcutsPane}
               />
           </div>
         </div>
