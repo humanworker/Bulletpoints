@@ -1,7 +1,7 @@
 
 import React, { useRef, useEffect, useState, useLayoutEffect, useCallback } from 'react';
 import { Item, ItemMap, DropPosition } from '../types';
-import { linkifyHtml, setCaretPosition, getCaretCharacterOffsetWithin } from '../utils';
+import { linkifyHtml, setCaretPosition, getCaretCharacterOffsetWithin, isMobile } from '../utils';
 
 interface BulletNodeProps {
   id: string;
@@ -60,6 +60,7 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
   const isSelected = selectedIds.has(id);
   const isFocused = focusedId === id;
   const isHighlighted = highlightedId === id;
+  const isMobileDevice = isMobile();
 
   // Cleanup command timeout
   useEffect(() => {
@@ -257,9 +258,24 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
     }
   };
 
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    // If double clicking the container/empty space, select all text
+    // If clicking text, let native behavior handle word selection
+    if (e.target === nodeRef.current && nodeRef.current) {
+        e.preventDefault();
+        const range = document.createRange();
+        range.selectNodeContents(nodeRef.current);
+        const sel = window.getSelection();
+        sel?.removeAllRanges();
+        sel?.addRange(range);
+    }
+  };
+
   // --- Drag & Drop Handlers ---
 
   const handleDragStart = (e: React.DragEvent) => {
+    if (isMobileDevice) return; // Guard
+
     e.stopPropagation();
     let itemsToDrag = [id];
     if (isSelected) {
@@ -299,7 +315,7 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!containerRef.current) return;
+    if (!containerRef.current || isMobileDevice) return;
     const rect = containerRef.current.getBoundingClientRect();
     const y = e.clientY - rect.top;
     const height = rect.height;
@@ -318,6 +334,8 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    if (isMobileDevice) return;
+
     const dragIdsJson = e.dataTransfer.getData('application/bulletpoints-ids');
     if (dragIdsJson && dragOverPosition) {
       try {
@@ -361,12 +379,15 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
         ? 'text-yellow-700 dark:text-yellow-500'
         : 'text-gray-800 dark:text-gray-100';
   
-  let contentClasses = `outline-none py-[2px] break-words ${textColorClass} ${sizeConfig.text} `;
+  let contentClasses = `outline-none py-[2px] break-words select-text ${textColorClass} ${sizeConfig.text} `;
   contentClasses += item.isBold ? 'font-bold ' : 'font-medium ';
   if (item.isItalic) contentClasses += 'italic ';
   if (item.isUnderlined) contentClasses += 'underline ';
   if (item.collapsed && hasChildren) contentClasses += 'underline decoration-gray-300 dark:decoration-gray-600 ';
   if (isHighlighted) contentClasses += 'bg-yellow-300 dark:bg-yellow-300 rounded-sm px-1 -ml-1 ';
+  
+  // Make contentEditable full width so clicks in empty space hit it
+  contentClasses += 'w-full block ';
 
   return (
     <div className="relative">
@@ -383,8 +404,8 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
         {dragOverPosition === 'inside' && <div className="drop-indicator absolute -bottom-0.5 left-8 right-0 h-1 bg-blue-500 rounded-sm z-30 pointer-events-none" />}
 
         <div 
-          className={`relative flex-shrink-0 w-6 h-6 flex items-center justify-center -ml-2 mr-1 cursor-move group/bullet ${sizeConfig.bulletMargin}`}
-          draggable
+          className={`relative flex-shrink-0 w-6 h-6 flex items-center justify-center -ml-2 mr-1 ${!isMobileDevice ? 'cursor-move' : ''} group/bullet ${sizeConfig.bulletMargin}`}
+          draggable={!isMobileDevice}
           onDragStart={handleDragStart}
         >
           {item.isTask ? (
@@ -414,6 +435,7 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
           className="flex-grow min-w-0 cursor-text"
           onClick={(e) => {
             // Focus the editor if clicking on the empty space of the row
+            // Note: With w-full contentEditable, this mostly handles clicks in the wrapper padding
             if (e.target !== nodeRef.current) {
               e.preventDefault();
               if (nodeRef.current) {
@@ -435,11 +457,12 @@ export const BulletNode: React.FC<BulletNodeProps> = ({
             suppressContentEditableWarning
             onInput={handleInput}
             onClick={handleContentClick}
+            onDoubleClick={handleDoubleClick}
             onKeyDown={handleKeyDownWrapper}
             onPaste={handlePaste}
             onFocus={() => setFocusedId(id)}
             className={contentClasses}
-            style={{ minHeight: '24px', display: 'inline-block', minWidth: '1px' }}
+            style={{ minHeight: '24px' }}
           />
         </div>
       </div>

@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
+import { isMobile } from '../utils';
 
 interface SelectionRect {
   x: number;
@@ -17,16 +18,28 @@ export const useMarqueeSelection = (
   const initialSelectionRef = useRef<Set<string>>(new Set());
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    const target = e.target as HTMLElement;
+    // Disable selection completely on mobile
+    if (isMobile()) return;
+
+    // 1. Handle Text Nodes (clicks on text content)
+    let target = e.target as Node;
+    if (target.nodeType === Node.TEXT_NODE) {
+      target = target.parentNode as Node;
+    }
+    const el = target as HTMLElement;
     
-    // Allow dragging from anywhere EXCEPT interactive elements
+    // 2. Ignore interactive elements AND the node wrapper itself
+    // Ignoring the wrapper ensures that tapping/clicking on the item's "row" 
+    // passes through to the Item's own onClick handlers (for focus) 
+    // instead of triggering marquee start (which would blur focus).
     if (
-        target.closest('[contenteditable]') || 
-        target.closest('.cursor-move') || 
-        target.closest('button') || 
-        target.closest('a') ||
-        target.closest('input') ||
-        target.closest('textarea')
+        el.closest('[contenteditable]') || 
+        el.closest('.cursor-move') || 
+        el.closest('button') || 
+        el.closest('a') ||
+        el.closest('input') || 
+        el.closest('textarea') ||
+        el.closest('.bullet-node-wrapper')
     ) {
       return;
     }
