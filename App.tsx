@@ -539,7 +539,7 @@ const App: React.FC = () => {
                   showHelp={showHelp}
                   onToggleHelp={toggleHelp}
                   onExport={Capacitor.getPlatform() === 'android' ? undefined : handleExport}
-                  onImport={() => setShowImportModal(true)}
+                  onImport={Capacitor.getPlatform() === 'android' ? undefined : () => setShowImportModal(true)}
                   showTasksPane={showTasksPane}
                   onToggleTasksPane={toggleTasksPane}
                   showShortcutsPane={showShortcutsPane}
