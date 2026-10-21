@@ -48,6 +48,17 @@ export const findParentId = (items: ItemMap, childId: string): string | null => 
   return null;
 };
 
+// Child id -> parent id for every item. O(n) once per change, so lookups are O(1)
+export const buildParentMap = (items: ItemMap): Record<string, string> => {
+  const parents: Record<string, string> = {};
+  for (const id in items) {
+    for (const childId of items[id].children) {
+      parents[childId] = id;
+    }
+  }
+  return parents;
+};
+
 // Check if possibleParent is actually a child of childId (to prevent cycles)
 export const isAncestor = (items: ItemMap, possibleAncestorId: string, childId: string): boolean => {
   // Direct check
@@ -304,9 +315,4 @@ export const getCaretCharacterOffsetWithin = (element: HTMLElement) => {
     caretOffset = preCaretRange.toString().length;
   }
   return caretOffset;
-};
-
-export const isMobile = (): boolean => {
-  if (typeof window === 'undefined') return false;
-  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 };

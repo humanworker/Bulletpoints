@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
-import { isMobile } from '../utils';
+import { isTouchDevice } from '../native';
 
 interface SelectionRect {
   x: number;
@@ -19,7 +19,7 @@ export const useMarqueeSelection = (
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     // Disable selection completely on mobile
-    if (isMobile()) return;
+    if (isTouchDevice()) return;
 
     // 1. Handle Text Nodes (clicks on text content)
     let target = e.target as Node;

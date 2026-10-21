@@ -3,95 +3,17 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content" />
+    <meta name="theme-color" content="#f9fafb" />
     <title>Bulletpoints</title>
-    <script src="https://cdn.tailwindcss.com"></script>
     <script>
-      tailwind.config = {
-        darkMode: 'class',
-        theme: {
-          extend: {
-            colors: {
-              gray: {
-                850: '#1f2937', // Custom dark gray if needed
-              }
-            }
-          }
-        }
-      }
+      // Apply the saved theme before first paint to avoid a light flash in dark mode
+      try {
+        var saved = localStorage.getItem('bulletpoints-theme');
+        var dark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (dark) document.documentElement.classList.add('dark');
+      } catch (e) {}
     </script>
-    <style>
-      /* Modern Minimal Scrollbar */
-      :root {
-        --scrollbar-thumb: rgba(156, 163, 175, 0.3);
-        --scrollbar-thumb-hover: rgba(156, 163, 175, 0.6);
-      }
-      .dark {
-        --scrollbar-thumb: rgba(107, 114, 128, 0.3);
-        --scrollbar-thumb-hover: rgba(107, 114, 128, 0.6);
-      }
-
-      /* Firefox */
-      * {
-        scrollbar-width: thin;
-        scrollbar-color: var(--scrollbar-thumb) transparent;
-      }
-
-      /* Webkit (Chrome, Safari, Edge) */
-      ::-webkit-scrollbar {
-        width: 6px;
-        height: 6px;
-      }
-      ::-webkit-scrollbar-track {
-        background: transparent;
-      }
-      ::-webkit-scrollbar-thumb {
-        background-color: var(--scrollbar-thumb);
-        border-radius: 99px;
-        border: 2px solid transparent; /* Creates padding effect */
-        background-clip: content-box;
-      }
-      ::-webkit-scrollbar-thumb:hover {
-        background-color: var(--scrollbar-thumb-hover);
-      }
-      
-      /* Rich Text Styles */
-      b, strong { font-weight: bold; }
-      i, em { font-style: italic; }
-      u { text-decoration: underline; }
-      
-      /* Placeholder for contenteditable */
-      [contenteditable]:empty:before {
-        content: attr(placeholder);
-        color: #d1d5db; /* gray-300 */
-        cursor: text;
-      }
-      .dark [contenteditable]:empty:before {
-        color: #4b5563; /* gray-600 */
-      }
-
-      /* Mobile optimizations */
-      * {
-        -webkit-tap-highlight-color: transparent;
-      }
-    </style>
-  <script type="importmap">
-{
-  "imports": {
-    "react": "https://esm.sh/react@^19.2.3",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "react/": "https://esm.sh/react@^19.2.3/",
-    "vite": "https://esm.sh/vite@^7.3.1",
-    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
-    "firebase/app": "https://esm.sh/firebase@10.8.0/app",
-    "firebase/firestore": "https://esm.sh/firebase@10.8.0/firestore",
-    "firebase/": "https://esm.sh/firebase@^12.8.0/",
-    "@capacitor/cli": "https://esm.sh/@capacitor/cli@^8.0.1",
-    "@capacitor/core": "https://esm.sh/@capacitor/core@^6.0.0"
-  }
-}
-</script>
-<link rel="stylesheet" href="/index.css">
-</head>
+  </head>
   <body class="font-sans antialiased h-full w-full fixed overflow-hidden bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
     <div id="root" class="h-full w-full overflow-hidden"></div>
     <script type="module" src="/index.tsx"></script>

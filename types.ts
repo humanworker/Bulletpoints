@@ -38,6 +38,7 @@ export type Action =
   | { type: 'MOVE'; dragId: string; targetId: string; position: DropPosition }
   | { type: 'MOVE_ITEMS'; dragIds: string[]; targetId: string; position: DropPosition }
   | { type: 'LOAD_STATE'; state: WorkflowyState }
+  | { type: 'REMOTE_MERGE'; items: ItemMap }
   | { type: 'CHANGE_FONT_SIZE'; id: string; size: 'small' | 'medium' | 'large' }
   | { type: 'SET_IS_TASK'; id: string; isTask: boolean }
   | { type: 'TOGGLE_IS_SHORTCUT'; id: string }

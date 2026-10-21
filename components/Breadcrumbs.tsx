@@ -4,6 +4,7 @@ import { stripHtml } from '../utils';
 
 interface BreadcrumbsProps {
   items: ItemMap;
+  parentMap: Record<string, string>;
   currentRootId: string;
   rootId: string; // Absolute root
   onNavigate: (id: string) => void;
@@ -19,10 +20,12 @@ interface BreadcrumbsProps {
   onToggleTasksPane?: () => void;
   showShortcutsPane?: boolean;
   onToggleShortcutsPane?: () => void;
+  onOpenMenu?: () => void; // Touch devices: open the menu as a bottom sheet instead of inline
 }
 
 export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
   items,
+  parentMap,
   currentRootId,
   rootId,
   onNavigate,
@@ -38,6 +41,7 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
   onToggleTasksPane,
   showShortcutsPane,
   onToggleShortcutsPane,
+  onOpenMenu,
 }) => {
   const path: Item[] = [];
   let curr: string | null = currentRootId;
@@ -46,12 +50,7 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
   const navRef = useRef<HTMLElement>(null);
 
   // Build path backwards from current view to absolute root
-  const findParent = (childId: string): string | null => {
-    for (const id in items) {
-      if (items[id].children.includes(childId)) return id;
-    }
-    return null;
-  };
+  const findParent = (childId: string): string | null => parentMap[childId] ?? null;
 
   while (curr && curr !== rootId) {
     if (items[curr]) {
@@ -131,6 +130,10 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
         const handleClick = (e: React.MouseEvent) => {
             if (isRoot && isAtRoot) {
                 e.stopPropagation();
+                if (onOpenMenu) {
+                    onOpenMenu();
+                    return;
+                }
                 setIsMenuOpen(!isMenuOpen);
             } else {
                 onNavigate(item.id);
