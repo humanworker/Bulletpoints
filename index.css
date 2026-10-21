@@ -1,0 +1,150 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Modern Minimal Scrollbar */
+:root {
+  --scrollbar-thumb: rgba(156, 163, 175, 0.3);
+  --scrollbar-thumb-hover: rgba(156, 163, 175, 0.6);
+  /* Height of the on-screen keyboard overlapping the layout viewport (set by useVirtualKeyboard) */
+  --kb-offset: 0px;
+}
+.dark {
+  --scrollbar-thumb: rgba(107, 114, 128, 0.3);
+  --scrollbar-thumb-hover: rgba(107, 114, 128, 0.6);
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+/* Webkit (Chrome, Safari, Edge) */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  border-radius: 99px;
+  border: 2px solid transparent; /* Creates padding effect */
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
+}
+
+/* Rich Text Styles */
+b, strong { font-weight: bold; }
+i, em { font-style: italic; }
+u { text-decoration: underline; }
+
+/* Placeholder for contenteditable */
+[contenteditable]:empty:before {
+  content: attr(placeholder);
+  color: #d1d5db; /* gray-300 */
+  cursor: text;
+}
+.dark [contenteditable]:empty:before {
+  color: #4b5563; /* gray-600 */
+}
+
+/* Mobile optimizations */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+  overscroll-behavior: none;
+}
+
+button, [role="button"], input[type="checkbox"] {
+  touch-action: manipulation;
+}
+
+/* Long-pressing a bullet starts a drag, so suppress the native callout/menu there */
+.bullet-handle {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Zoom in/out page transitions (View Transitions API) */
+.zoom-content {
+  view-transition-name: zoom-content;
+}
+
+::view-transition-old(zoom-content),
+::view-transition-new(zoom-content) {
+  animation-duration: 220ms;
+  animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+
+html[data-nav="forward"]::view-transition-old(zoom-content) {
+  animation-name: bp-slide-out-left;
+}
+html[data-nav="forward"]::view-transition-new(zoom-content) {
+  animation-name: bp-slide-in-right;
+}
+html[data-nav="back"]::view-transition-old(zoom-content) {
+  animation-name: bp-slide-out-right;
+}
+html[data-nav="back"]::view-transition-new(zoom-content) {
+  animation-name: bp-slide-in-left;
+}
+
+@keyframes bp-slide-in-right {
+  from { transform: translateX(24%); opacity: 0; }
+}
+@keyframes bp-slide-out-left {
+  to { transform: translateX(-12%); opacity: 0; }
+}
+@keyframes bp-slide-in-left {
+  from { transform: translateX(-24%); opacity: 0; }
+}
+@keyframes bp-slide-out-right {
+  to { transform: translateX(12%); opacity: 0; }
+}
+
+/* Bottom sheet + toast animations */
+@keyframes bp-sheet-in {
+  from { transform: translateY(100%); }
+}
+@keyframes bp-fade-in {
+  from { opacity: 0; }
+}
+@keyframes bp-toast-in {
+  from { transform: translateY(16px); opacity: 0; }
+}
+.animate-sheet-in {
+  animation: bp-sheet-in 260ms cubic-bezier(0.2, 0, 0, 1);
+}
+.animate-fade-in {
+  animation: bp-fade-in 200ms ease-out;
+}
+.animate-toast-in {
+  animation: bp-toast-in 200ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(zoom-content),
+  ::view-transition-new(zoom-content) {
+    animation: none;
+  }
+  .animate-sheet-in,
+  .animate-fade-in,
+  .animate-toast-in {
+    animation: none;
+  }
+}

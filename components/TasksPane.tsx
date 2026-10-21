@@ -1,26 +1,27 @@
 
 import React from 'react';
 import { Item, ItemMap } from '../types';
-import { stripHtml, findParentId } from '../utils';
+import { stripHtml } from '../utils';
 
 interface TasksPaneProps {
   items: ItemMap;
+  parentMap: Record<string, string>;
   onNavigate: (parentId: string, taskId: string) => void;
   onCompleteTask: (id: string, parentId: string) => void;
 }
 
-export const TasksPane: React.FC<TasksPaneProps> = ({ items, onNavigate, onCompleteTask }) => {
+export const TasksPane: React.FC<TasksPaneProps> = ({ items, parentMap, onNavigate, onCompleteTask }) => {
   const tasks = Object.values(items).filter(i => i.isTask);
 
   const handleTaskClick = (task: Item) => {
-    const parentId = findParentId(items, task.id);
+    const parentId = parentMap[task.id];
     if (parentId) {
       onNavigate(parentId, task.id);
     }
   };
 
   const handleTaskComplete = (task: Item) => {
-    const parentId = findParentId(items, task.id);
+    const parentId = parentMap[task.id];
     if (parentId) {
       onCompleteTask(task.id, parentId);
     }

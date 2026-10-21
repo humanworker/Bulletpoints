@@ -1,8 +1,8 @@
 import { useReducer, useEffect, useCallback, useState, useRef } from 'react';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDocFromServer, setDoc, onSnapshot, deleteField } from 'firebase/firestore';
 import { db } from '../firebase';
-import { WorkflowyState, Action, DropPosition, SaveStatus, Item } from '../types';
-import { generateId, getDefaultState, findParentId, isAncestor, getUserDocId, parseImportText } from '../utils';
+import { WorkflowyState, Action, DropPosition, SaveStatus, Item, ItemMap } from '../types';
+import { generateId, getDefaultState, findParentId, isAncestor, getUserDocId, parseImportText, INITIAL_ROOT_ID } from '../utils';
 
 // Internal history state wrapper
 interface HistoryState {
@@ -18,6 +18,9 @@ const reducer = (state: WorkflowyState, action: Action): WorkflowyState => {
   switch (action.type) {
     case 'LOAD_STATE':
       return action.state;
+
+    case 'REMOTE_MERGE':
+      return { ...state, items: action.items };
 
     case 'ADD_ITEM': {
       const { afterId, parentId, newId: providedId } = action;
@@ -370,6 +373,15 @@ const historyReducer = (state: HistoryState, action: Action): HistoryState => {
         lastAction: undefined
       };
     }
+    case 'REMOTE_MERGE': {
+      // Another device changed the data; local undo history would revert their edits
+      return {
+        past: [],
+        present: reducer(state.present, action),
+        future: [],
+        lastAction: action
+      };
+    }
     default: {
       const newPresent = reducer(state.present, action);
       
@@ -402,109 +414,250 @@ const historyReducer = (state: HistoryState, action: Action): HistoryState => {
 };
 
 const LOCAL_STORAGE_KEY = 'bulletpoints-local-data';
+const COLLECTION = 'bulletpoints-data';
+const SAVE_DEBOUNCE_MS = 800;
+
+const readLocalState = (): WorkflowyState | null => {
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as WorkflowyState;
+    return parsed && parsed.items && parsed.items[parsed.rootId] ? parsed : null;
+  } catch (e) {
+    console.error('Failed to parse local data', e);
+    return null;
+  }
+};
+
+// Value comparison of two items (used to diff local state against the server copy)
+const itemsEqual = (a?: Item, b?: Item): boolean => {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return (
+    a.text === b.text &&
+    !!a.collapsed === !!b.collapsed &&
+    !!a.isCompleted === !!b.isCompleted &&
+    !!a.isTask === !!b.isTask &&
+    !!a.isShortcut === !!b.isShortcut &&
+    !!a.isBold === !!b.isBold &&
+    !!a.isItalic === !!b.isItalic &&
+    !!a.isUnderlined === !!b.isUnderlined &&
+    (a.fontSize || 'small') === (b.fontSize || 'small') &&
+    a.children.length === b.children.length &&
+    a.children.every((c, i) => c === b.children[i])
+  );
+};
+
+// Three-way merge: items edited locally since the last sync (local differs from base) keep the
+// local version; everything else takes the server's version. Unchanged items keep their object identity.
+export const mergeRemoteItems = (local: ItemMap, base: ItemMap, remote: ItemMap): { merged: ItemMap; changed: boolean } => {
+  const merged: ItemMap = {};
+  let changed = false;
+  const ids = new Set([...Object.keys(local), ...Object.keys(remote), ...Object.keys(base)]);
+
+  ids.forEach((id) => {
+    const l = local[id];
+    const r = remote[id];
+    const locallyChanged = !itemsEqual(l, base[id]);
+    const pick = locallyChanged ? l : itemsEqual(r, l) ? l : r;
+    if (pick) merged[id] = pick;
+    if (pick !== l) changed = true;
+  });
+
+  return { merged, changed };
+};
 
 export const useBulletpoints = () => {
-  const [loading, setLoading] = useState(true);
-  const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
-  const isInitialLoad = useRef(true);
+  // Read the on-device copy once so the first frame can render real content
+  const initialLocalRef = useRef<WorkflowyState | null | undefined>(undefined);
+  if (initialLocalRef.current === undefined) {
+    initialLocalRef.current = readLocalState();
+  }
+  const hadLocalData = initialLocalRef.current !== null;
 
-  const [historyState, dispatch] = useReducer(historyReducer, null, () => {
-    // Start with a skeleton, content will load async
-    return {
-      past: [],
-      present: getDefaultState(),
-      future: [],
-    };
-  });
+  const [loading, setLoading] = useState(!hadLocalData);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
+
+  const [historyState, dispatch] = useReducer(historyReducer, null, () => ({
+    past: [],
+    present: initialLocalRef.current || getDefaultState(),
+    future: [],
+  }));
 
   const { present: state, past, future } = historyState;
 
-  // Load Data function (exposed for refresh)
-  const refreshData = useCallback(async () => {
-    setLoading(true);
-    isInitialLoad.current = true; // Prevent auto-save during loading
+  // Latest state, readable from async callbacks (snapshot listener, save timer)
+  const stateRef = useRef(state);
+  stateRef.current = state;
 
-    // 1. Fallback to Local Storage if Firebase is not configured
+  // Items as we believe they exist on the server. Saves upload only the difference,
+  // and incoming snapshots are three-way merged against it so local edits are never lost.
+  const syncedItemsRef = useRef<ItemMap | null>(initialLocalRef.current?.items ?? null);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingWritesRef = useRef(0);
+
+  const flushSave = useCallback(() => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    const current = stateRef.current;
+
+    // 1. Local copy (instant startup + offline fallback)
+    try {
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(current));
+    } catch (e) {
+      console.error('Failed to save local data', e);
+    }
+
     if (!db) {
-      const localData = localStorage.getItem(LOCAL_STORAGE_KEY);
-      if (localData) {
-        try {
-          dispatch({ type: 'LOAD_STATE', state: JSON.parse(localData) });
-        } catch (e) {
-          console.error('Failed to parse local data', e);
-          dispatch({ type: 'LOAD_STATE', state: getDefaultState() });
-        }
-      } else {
-        dispatch({ type: 'LOAD_STATE', state: getDefaultState() });
-      }
-      setLoading(false);
-      // Small delay prevents save effect from firing immediately
-      setTimeout(() => {
-        isInitialLoad.current = false;
-      }, 500);
+      setSaveStatus('saved-local');
       return;
     }
 
-    // 2. Firebase Load
-    try {
-      const docId = getUserDocId();
-      const docRef = doc(db, 'bulletpoints-data', docId);
-      const docSnap = await getDoc(docRef);
+    // 2. Firestore: only changed / deleted items, merged into the document
+    const base = syncedItemsRef.current;
+    if (base === null) return; // Not synced yet; the first snapshot triggers a save
 
-      if (docSnap.exists()) {
-        const data = docSnap.data() as WorkflowyState;
-        dispatch({ type: 'LOAD_STATE', state: data });
-      } else {
-        // New user, save default state immediately so it exists next time
-        const defaultState = getDefaultState();
-        await setDoc(docRef, defaultState);
-        dispatch({ type: 'LOAD_STATE', state: defaultState });
+    const updates: Record<string, Item | ReturnType<typeof deleteField>> = {};
+    let changeCount = 0;
+    for (const id in current.items) {
+      if (!itemsEqual(current.items[id], base[id])) {
+        updates[id] = current.items[id];
+        changeCount++;
       }
-    } catch (error) {
-      console.error("Error loading data from Firebase:", error);
-      // Fallback to local storage or defaults on error if needed
-    } finally {
-      setLoading(false);
-      // Small delay to prevent the save effect from firing immediately after load
-      setTimeout(() => {
-        isInitialLoad.current = false;
-      }, 500);
     }
-  }, []);
+    for (const id in base) {
+      if (!(id in current.items)) {
+        updates[id] = deleteField();
+        changeCount++;
+      }
+    }
 
-  // Initial Load Effect
-  useEffect(() => {
-    refreshData();
-  }, [refreshData]);
+    if (changeCount === 0) {
+      if (pendingWritesRef.current === 0) setSaveStatus('saved');
+      return;
+    }
 
-  // Save Effect (Debounced)
-  useEffect(() => {
-    if (loading || isInitialLoad.current) return;
-
+    syncedItemsRef.current = current.items;
+    pendingWritesRef.current++;
     setSaveStatus('saving');
 
-    const save = async () => {
-      // 1. Local Storage Save (always save to local as backup/fallback)
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(state));
+    setDoc(doc(db, COLLECTION, getUserDocId()), { items: updates, rootId: current.rootId }, { merge: true })
+      .then(() => {
+        pendingWritesRef.current--;
+        if (pendingWritesRef.current === 0 && !saveTimerRef.current) setSaveStatus('saved');
+      })
+      .catch((error) => {
+        pendingWritesRef.current--;
+        console.error('Error saving to Firebase:', error);
+        // Server state is now unknown: re-upload everything on the next save
+        syncedItemsRef.current = {};
+        setSaveStatus('error');
+      });
+  }, []);
 
-      // 2. Firebase Save
-      if (db) {
-        try {
-          const docId = getUserDocId();
-          await setDoc(doc(db, 'bulletpoints-data', docId), state);
-          setSaveStatus('saved');
-        } catch (error) {
-          console.error("Error saving to Firebase:", error);
-          setSaveStatus('error');
+  const scheduleSave = useCallback(() => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(flushSave, SAVE_DEBOUNCE_MS);
+  }, [flushSave]);
+
+  // Merge a server copy of the items into local state
+  const applyRemoteItems = useCallback((remoteItems: ItemMap, rootId: string) => {
+    const base = syncedItemsRef.current;
+    syncedItemsRef.current = remoteItems;
+
+    if (base === null) {
+      // First sync on a device with no local copy: take the server state as-is
+      dispatch({ type: 'LOAD_STATE', state: { items: remoteItems, rootId } });
+      return;
+    }
+
+    const { merged, changed } = mergeRemoteItems(stateRef.current.items, base, remoteItems);
+
+    if (changed && merged[stateRef.current.rootId]) {
+      dispatch({ type: 'REMOTE_MERGE', items: merged });
+    }
+    // Upload any local edits the server doesn't have yet
+    scheduleSave();
+  }, [scheduleSave]);
+
+  // Live sync with Firestore (or local-only mode)
+  useEffect(() => {
+    if (!db) {
+      setLoading(false);
+      return;
+    }
+
+    const docRef = doc(db, COLLECTION, getUserDocId());
+    const unsubscribe = onSnapshot(
+      docRef,
+      (snap) => {
+        // With a local copy we already render instantly; only trust the server's view
+        if (snap.metadata.fromCache && (hadLocalData || !snap.exists())) return;
+
+        if (!snap.exists()) {
+          // Nothing on the server yet: upload whatever we have (or a fresh default)
+          if (syncedItemsRef.current === null) {
+            dispatch({ type: 'LOAD_STATE', state: getDefaultState() });
+          }
+          syncedItemsRef.current = {};
+          setLoading(false);
+          scheduleSave();
+          return;
         }
-      } else {
-        setSaveStatus('saved-local'); // Explicit status for local-only save
-      }
-    };
 
-    const timeoutId = setTimeout(save, 1000);
-    return () => clearTimeout(timeoutId);
-  }, [state, loading]);
+        const data = snap.data() as WorkflowyState;
+        if (!data.items || !data.items[data.rootId || INITIAL_ROOT_ID]) return;
+        applyRemoteItems(data.items, data.rootId || INITIAL_ROOT_ID);
+        setLoading(false);
+      },
+      (error) => {
+        console.error('Error syncing with Firebase:', error);
+        setSaveStatus('error');
+        setLoading(false);
+      }
+    );
+    return unsubscribe;
+  }, [applyRemoteItems, scheduleSave, hadLocalData]);
+
+  // Manual refresh: pull the latest server copy and merge it in
+  const refreshData = useCallback(async () => {
+    if (!db) return;
+    try {
+      const snap = await getDocFromServer(doc(db, COLLECTION, getUserDocId()));
+      if (snap.exists()) {
+        const data = snap.data() as WorkflowyState;
+        if (data.items) applyRemoteItems(data.items, data.rootId || INITIAL_ROOT_ID);
+      }
+    } catch (error) {
+      console.error('Error refreshing from Firebase:', error);
+      setSaveStatus('error');
+    }
+  }, [applyRemoteItems]);
+
+  // Debounced save whenever local state changes (but not for states that came from the server)
+  const lastSeenStateRef = useRef(state);
+  useEffect(() => {
+    if (lastSeenStateRef.current === state) return;
+    lastSeenStateRef.current = state;
+    if (loading || historyState.lastAction?.type === 'REMOTE_MERGE') return;
+    setSaveStatus('saving');
+    scheduleSave();
+  }, [state, loading, historyState.lastAction, scheduleSave]);
+
+  // Flush immediately when the app goes to the background (it may be killed there)
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden' && saveTimerRef.current) flushSave();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('pagehide', handleVisibility);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('pagehide', handleVisibility);
+    };
+  }, [flushSave]);
 
   const addItem = useCallback((parentId: string, afterId: string | null, newId?: string) => {
     dispatch({ type: 'ADD_ITEM', parentId, afterId, newId });

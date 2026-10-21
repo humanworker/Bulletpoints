@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Matches the web app's background (Tailwind gray-50) to avoid flashes between splash and content -->
+    <color name="app_background">#F9FAFB</color>
+</resources>

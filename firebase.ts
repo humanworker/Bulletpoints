@@ -1,7 +1,13 @@
 
 
 import { initializeApp } from 'firebase/app';
-import { getFirestore, Firestore } from 'firebase/firestore';
+import {
+  getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  Firestore,
+} from 'firebase/firestore';
 
 // ------------------------------------------------------------------
 // INSTRUCTIONS:
@@ -43,7 +49,16 @@ const isPlaceholder = (value: string | undefined) => !value || value.includes("P
 if (firebaseConfig.apiKey && !isPlaceholder(firebaseConfig.apiKey)) {
   try {
     const app = initializeApp(firebaseConfig);
-    db = getFirestore(app);
+    try {
+      // Persistent (IndexedDB) cache: instant offline reads and writes that survive app restarts
+      db = initializeFirestore(app, {
+        localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+        ignoreUndefinedProperties: true,
+      });
+    } catch (cacheError) {
+      console.warn("Firestore persistent cache unavailable, using memory cache:", cacheError);
+      db = getFirestore(app);
+    }
     console.log("Firebase initialized successfully");
   } catch (error) {
     console.error("Firebase initialization failed:", error);

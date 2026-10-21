@@ -1,205 +1,191 @@
 
-import React, { useMemo, useState, useRef, useEffect } from 'react';
-import { ItemMap, DropPosition } from '../types';
-import { findParentId } from '../utils';
+import React, { useEffect, useState } from 'react';
+import { Item } from '../types';
 
 interface MobileToolbarProps {
-  focusedId: string | null;
-  items: ItemMap;
-  visibleItems: string[];
-  undo: () => void;
-  redo: () => void;
+  visible: boolean;
+  isKeyboardOpen: boolean;
+  item: Item | null;
+  canIndent: boolean;
+  canOutdent: boolean;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
   canUndo: boolean;
   canRedo: boolean;
-  onIndent: (id: string, parentId: string) => void;
-  onOutdent: (id: string, parentId: string) => void;
-  onDelete: (id: string, parentId: string) => void;
-  onToggleCollapse: (id: string) => void;
-  setFocusedId: (id: string | null) => void;
+  onIndent: () => void;
+  onOutdent: () => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  onToggleTask: () => void;
+  onToggleBold: () => void;
+  onCycleSize: () => void;
+  onToggleCollapse: () => void;
+  onDelete: () => void;
+  onUndo: () => void;
+  onRedo: () => void;
+  onDone: () => void;
+  onOpenLink: (url: string) => void;
 }
 
+const Icon: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    {children}
+  </svg>
+);
+
+interface ToolbarButtonProps {
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+  active?: boolean;
+  danger?: boolean;
+  children: React.ReactNode;
+}
+
+const ToolbarButton: React.FC<ToolbarButtonProps> = ({ label, onPress, disabled, active, danger, children }) => (
+  <button
+    type="button"
+    aria-label={label}
+    title={label}
+    disabled={disabled}
+    // Keep focus (and the keyboard) in the text field while tapping toolbar buttons
+    onPointerDown={(e) => e.preventDefault()}
+    onMouseDown={(e) => e.preventDefault()}
+    onClick={onPress}
+    className={`shrink-0 w-11 h-11 flex items-center justify-center rounded-xl transition-colors active:bg-gray-200 dark:active:bg-gray-700 disabled:opacity-30 ${
+      active
+        ? 'text-blue-600 dark:text-blue-400'
+        : danger
+          ? 'text-red-600 dark:text-red-400'
+          : 'text-gray-700 dark:text-gray-200'
+    }`}
+  >
+    {children}
+  </button>
+);
+
+const Divider = () => <div className="shrink-0 w-px h-6 mx-1 bg-gray-200 dark:bg-gray-700" />;
+
+// Find the link (if any) the caret is currently inside
+const getLinkAtCaret = (): string | null => {
+  const selection = window.getSelection();
+  const node = selection?.anchorNode;
+  if (!node) return null;
+  const el = node.nodeType === Node.TEXT_NODE ? node.parentElement : (node as HTMLElement);
+  const link = el?.closest('a');
+  return link && link.closest('[contenteditable]') ? (link as HTMLAnchorElement).href : null;
+};
+
 export const MobileToolbar: React.FC<MobileToolbarProps> = ({
-  focusedId,
-  items,
-  visibleItems,
-  undo,
-  redo,
+  visible,
+  isKeyboardOpen,
+  item,
+  canIndent,
+  canOutdent,
+  canMoveUp,
+  canMoveDown,
   canUndo,
   canRedo,
   onIndent,
   onOutdent,
-  onDelete,
+  onMoveUp,
+  onMoveDown,
+  onToggleTask,
+  onToggleBold,
+  onCycleSize,
   onToggleCollapse,
-  setFocusedId
+  onDelete,
+  onUndo,
+  onRedo,
+  onDone,
+  onOpenLink,
 }) => {
-  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
-  const deleteTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [linkUrl, setLinkUrl] = useState<string | null>(null);
 
-  // Reset delete confirmation if focus changes
   useEffect(() => {
-    setIsConfirmingDelete(false);
-    if (deleteTimeoutRef.current) clearTimeout(deleteTimeoutRef.current);
-    return () => {
-      if (deleteTimeoutRef.current) clearTimeout(deleteTimeoutRef.current);
-    };
-  }, [focusedId]);
-
-  const mobileActionStates = useMemo(() => {
-    if (!focusedId || !items[focusedId]) {
-      return { canIndent: false, canOutdent: false, canExpand: false, canCollapse: false };
+    if (!visible) {
+      setLinkUrl(null);
+      return;
     }
+    const update = () => setLinkUrl(getLinkAtCaret());
+    update();
+    document.addEventListener('selectionchange', update);
+    return () => document.removeEventListener('selectionchange', update);
+  }, [visible]);
 
-    const item = items[focusedId];
-    const parentId = findParentId(items, focusedId);
-    
-    let canIndent = false;
-    if (parentId && items[parentId]) {
-      const index = items[parentId].children.indexOf(focusedId);
-      canIndent = index > 0;
-    }
-
-    let canOutdent = false;
-    if (parentId) {
-      const grandParentId = findParentId(items, parentId);
-      canOutdent = !!grandParentId;
-    }
-
-    const hasChildren = item.children.length > 0;
-    const canExpand = hasChildren && item.collapsed;
-    const canCollapse = hasChildren && !item.collapsed;
-
-    return { canIndent, canOutdent, canExpand, canCollapse };
-  }, [focusedId, items]);
-
-  const handleMobileAction = (action: 'indent' | 'outdent' | 'delete' | 'expand' | 'collapse') => {
-    if (!focusedId) return;
-
-    // Handle Delete Confirmation
-    if (action === 'delete') {
-      if (!isConfirmingDelete) {
-        setIsConfirmingDelete(true);
-        if (deleteTimeoutRef.current) clearTimeout(deleteTimeoutRef.current);
-        deleteTimeoutRef.current = setTimeout(() => {
-          setIsConfirmingDelete(false);
-          deleteTimeoutRef.current = null;
-        }, 1000);
-        return; 
-      } else {
-        setIsConfirmingDelete(false);
-        if (deleteTimeoutRef.current) {
-          clearTimeout(deleteTimeoutRef.current);
-          deleteTimeoutRef.current = null;
-        }
-      }
-    } else {
-      if (isConfirmingDelete) {
-        setIsConfirmingDelete(false);
-        if (deleteTimeoutRef.current) {
-          clearTimeout(deleteTimeoutRef.current);
-          deleteTimeoutRef.current = null;
-        }
-      }
-    }
-
-    const parentId = findParentId(items, focusedId);
-
-    if (action === 'delete' && parentId) {
-        // Handle focus before deleting
-        const currentIndex = visibleItems.indexOf(focusedId);
-        if (currentIndex !== -1 && currentIndex < visibleItems.length - 1) {
-           setFocusedId(visibleItems[currentIndex + 1]);
-        } else if (currentIndex > 0) {
-           setFocusedId(visibleItems[currentIndex - 1]);
-        }
-        onDelete(focusedId, parentId);
-    } else if (action === 'indent' && parentId && mobileActionStates.canIndent) {
-        onIndent(focusedId, parentId);
-    } else if (action === 'outdent' && parentId && mobileActionStates.canOutdent) {
-        onOutdent(focusedId, parentId);
-    } else if ((action === 'expand' && mobileActionStates.canExpand) || (action === 'collapse' && mobileActionStates.canCollapse)) {
-        onToggleCollapse(focusedId);
-    }
-  };
+  const hasChildren = !!item && item.children.length > 0;
+  const sizeLabel = item?.fontSize === 'large' ? 'H1' : item?.fontSize === 'medium' ? 'H2' : 'Aa';
 
   return (
-    <div className={`fixed bottom-[max(10px,env(safe-area-inset-bottom))] left-1/2 transform -translate-x-1/2 bg-black dark:bg-gray-800 dark:border dark:border-gray-700 rounded-full px-5 py-3 flex items-center gap-6 shadow-lg z-50 md:hidden transition-all duration-200 ${focusedId ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none'}`}>
-      <button 
-          onMouseDown={(e) => { e.preventDefault(); handleMobileAction('outdent'); }}
-          disabled={!mobileActionStates.canOutdent}
-          className={`transition-all ${mobileActionStates.canOutdent ? 'text-white opacity-80 hover:opacity-100 active:scale-90' : 'text-gray-600 dark:text-gray-500 cursor-not-allowed opacity-50'}`}
-      >
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M7 21V3"/>
-              <path d="M22 12H11"/>
-              <path d="M15 8l-4 4 4 4"/>
-          </svg>
-      </button>
-      
-      <button 
-          onMouseDown={(e) => { e.preventDefault(); handleMobileAction('indent'); }}
-          disabled={!mobileActionStates.canIndent}
-          className={`transition-all ${mobileActionStates.canIndent ? 'text-white opacity-80 hover:opacity-100 active:scale-90' : 'text-gray-600 dark:text-gray-500 cursor-not-allowed opacity-50'}`}
-      >
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 21V3"/>
-              <path d="M3 12h11"/>
-              <path d="M10 8l4 4-4 4"/>
-          </svg>
-      </button>
+    <div
+      id="mobile-toolbar"
+      data-visible={visible ? 'true' : 'false'}
+      className={`fixed inset-x-0 z-50 border-t border-gray-200 dark:border-gray-700 bg-white/95 dark:bg-gray-800/95 backdrop-blur transition-[transform,opacity] duration-200 ${
+        visible ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 pointer-events-none'
+      }`}
+      style={{
+        bottom: 'var(--kb-offset)',
+        paddingBottom: isKeyboardOpen ? 0 : 'env(safe-area-inset-bottom)',
+      }}
+    >
+      <div className="flex items-center h-12">
+        <div className="flex-1 min-w-0 flex items-center overflow-x-auto no-scrollbar px-1">
+          <ToolbarButton label="Outdent" onPress={onOutdent} disabled={!canOutdent}>
+            <Icon><path d="M7 21V3"/><path d="M22 12H11"/><path d="M15 8l-4 4 4 4"/></Icon>
+          </ToolbarButton>
+          <ToolbarButton label="Indent" onPress={onIndent} disabled={!canIndent}>
+            <Icon><path d="M21 21V3"/><path d="M3 12h11"/><path d="M10 8l4 4-4 4"/></Icon>
+          </ToolbarButton>
+          <ToolbarButton label="Move up" onPress={onMoveUp} disabled={!canMoveUp}>
+            <Icon><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></Icon>
+          </ToolbarButton>
+          <ToolbarButton label="Move down" onPress={onMoveDown} disabled={!canMoveDown}>
+            <Icon><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></Icon>
+          </ToolbarButton>
 
-      <button 
-          onMouseDown={(e) => { e.preventDefault(); handleMobileAction('delete'); }}
-          className={`transition-all ${isConfirmingDelete ? 'text-red-600 opacity-100 scale-110' : 'text-white opacity-80 hover:opacity-100 active:scale-90'}`}
-      >
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M18 6 6 18"/>
-              <path d="m6 6 12 12"/>
-          </svg>
-      </button>
+          <Divider />
 
-      <button 
-          onMouseDown={(e) => { e.preventDefault(); undo(); }}
-          disabled={!canUndo}
-          className={`transition-all ${canUndo ? 'text-white opacity-80 hover:opacity-100 active:scale-90' : 'text-gray-600 dark:text-gray-500 cursor-not-allowed opacity-50'}`}
-      >
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 7v6h6"/>
-              <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/>
-          </svg>
-      </button>
+          {linkUrl && (
+            <ToolbarButton label="Open link" onPress={() => onOpenLink(linkUrl)} active>
+              <Icon><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></Icon>
+            </ToolbarButton>
+          )}
+          <ToolbarButton label="Toggle task" onPress={onToggleTask} active={!!item?.isTask}>
+            <Icon><rect x="3" y="3" width="18" height="18" rx="3"/><path d="m8 12 3 3 5-6"/></Icon>
+          </ToolbarButton>
+          <ToolbarButton label="Bold" onPress={onToggleBold} active={!!item?.isBold}>
+            <Icon><path d="M6 12h9a4 4 0 0 1 0 8H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h7a4 4 0 0 1 0 8"/></Icon>
+          </ToolbarButton>
+          <ToolbarButton label="Text size" onPress={onCycleSize} active={!!item && item.fontSize !== undefined && item.fontSize !== 'small'}>
+            <span className="text-sm font-bold">{sizeLabel}</span>
+          </ToolbarButton>
+          <ToolbarButton label={item?.collapsed ? 'Expand' : 'Collapse'} onPress={onToggleCollapse} disabled={!hasChildren}>
+            {item?.collapsed ? (
+              <Icon><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></Icon>
+            ) : (
+              <Icon><path d="m7 20 5-5 5 5"/><path d="m7 4 5 5 5-5"/></Icon>
+            )}
+          </ToolbarButton>
 
-      <button 
-          onMouseDown={(e) => { e.preventDefault(); redo(); }}
-          disabled={!canRedo}
-          className={`transition-all ${canRedo ? 'text-white opacity-80 hover:opacity-100 active:scale-90' : 'text-gray-600 dark:text-gray-500 cursor-not-allowed opacity-50'}`}
-      >
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 7v6h-6"/>
-              <path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 3.7"/>
-          </svg>
-      </button>
+          <Divider />
 
-      <button 
-          onMouseDown={(e) => { e.preventDefault(); handleMobileAction('expand'); }}
-          disabled={!mobileActionStates.canExpand}
-          className={`transition-all ${mobileActionStates.canExpand ? 'text-white opacity-80 hover:opacity-100 active:scale-90' : 'text-gray-600 dark:text-gray-500 cursor-not-allowed opacity-50'}`}
-      >
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="m7 15 5 5 5-5"/>
-              <path d="m7 9 5-5 5 5"/>
-          </svg>
-      </button>
+          <ToolbarButton label="Undo" onPress={onUndo} disabled={!canUndo}>
+            <Icon><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></Icon>
+          </ToolbarButton>
+          <ToolbarButton label="Redo" onPress={onRedo} disabled={!canRedo}>
+            <Icon><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 3.7"/></Icon>
+          </ToolbarButton>
+          <ToolbarButton label="Delete item" onPress={onDelete} danger>
+            <Icon><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></Icon>
+          </ToolbarButton>
+        </div>
 
-      <button 
-          onMouseDown={(e) => { e.preventDefault(); handleMobileAction('collapse'); }}
-          disabled={!mobileActionStates.canCollapse}
-          className={`transition-all ${mobileActionStates.canCollapse ? 'text-white opacity-80 hover:opacity-100 active:scale-90' : 'text-gray-600 dark:text-gray-500 cursor-not-allowed opacity-50'}`}
-      >
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="m7 20 5-5 5 5"/>
-              <path d="m7 4 5 5 5-5"/>
-          </svg>
-      </button>
+        <div className="shrink-0 pl-1 pr-1 border-l border-gray-200 dark:border-gray-700">
+          <ToolbarButton label="Hide keyboard" onPress={onDone}>
+            <Icon><rect x="2" y="4" width="20" height="12" rx="2"/><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h8"/><path d="m9 19 3 3 3-3"/></Icon>
+          </ToolbarButton>
+        </div>
+      </div>
     </div>
   );
 };
