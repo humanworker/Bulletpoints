@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content" />
+    <meta name="theme-color" content="#000000" />
+    <meta name="color-scheme" content="dark light" />
+    <title>Point</title>
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="sync"></div>
+    <div id="toast"><span class="toast-msg"></span><button class="toast-undo" type="button">Undo</button></div>
+    <script>
+      // Safety net: never leave the launch screen up if the app itself fails to start
+      setTimeout(function () {
+        try { window.Capacitor.Plugins.SplashScreen.hide(); } catch (e) {}
+      }, 4000);
+    </script>
+    <script type="module" src="/src/app.ts"></script>
+  </body>
+</html>

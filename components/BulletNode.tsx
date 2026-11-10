@@ -485,6 +485,8 @@ const BulletNodeInner: React.FC<BulletNodeProps> = ({ id, parentId }) => {
   if (item.collapsed && hasChildren) contentClasses += 'underline decoration-gray-300 dark:decoration-gray-600 ';
   if (isHighlighted) contentClasses += 'bg-yellow-300 dark:bg-yellow-300 rounded-sm px-1 -ml-1 ';
   if (isCompleting) contentClasses += 'line-through opacity-40 transition-opacity duration-200 ';
+  // Items completed in Point (the minimal companion app) stay in the list until cleared there
+  if (item.isCompleted && !isCompleting) contentClasses += 'line-through opacity-40 ';
 
   // Make contentEditable full width so clicks in empty space hit it
   contentClasses += 'w-full block ';

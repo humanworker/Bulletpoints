@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Same as the page background and text colours in src/style.css, so there is no flash between splash and content -->
+    <color name="app_background">#F6F4EF</color>
+    <color name="app_foreground">#16150F</color>
+    <color name="icon_background">#000000</color>
+    <color name="icon_foreground">#F4F3EE</color>
+</resources>
