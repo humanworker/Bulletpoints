@@ -16,10 +16,10 @@ the bottom.
 | Tap the title | Rename the list you're in |
 | Swipe right | Complete (again to un-complete) |
 | Swipe left | Delete, with everything inside it |
-| Pull down | New line at the top. Keep pulling to go up a level |
+| Pull down | New line at the top. Pull as far again to go up a level |
 | Tap below the list | New line at the end |
 | Pinch apart | New line between two others |
-| Pinch together, Back, or tap the breadcrumb | Go up a level |
+| Pinch together, or Back | Go up a level |
 | Hold a line | Pick it up and move it. Slide right to tuck it into the line above; slide left to move it out a level |
 | Pull up at the bottom | Clear the completed lines |
 

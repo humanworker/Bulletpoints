@@ -10,7 +10,7 @@ import { haptic, hideSplash, onAppResume, onBackButton, onKeyboardHidden, openUr
 //   tap a line            edit it (or open it, if it has things inside)
 //   tap the right edge    open any line, to put things inside it
 //   swipe right / left    complete / delete
-//   pull down             new line at the top; keep pulling to go up a level
+//   pull down             new line at the top; pull as far again to go up a level
 //   tap below the list    new line at the end
 //   pinch apart           new line between two others; pinch together to go up a level
 //   hold                  pick a line up: move it, slide right to tuck it into the line above,
@@ -26,12 +26,13 @@ const ROW_H = 56;
 const EDGE_ZONE = 60;
 const SWIPE_ARM = 76;
 const HOLD_MS = 330;
+const PULL_RATIO = 0.875; // list travel per unit of finger travel: 64px of finger per step
+const PULL_FREE = 200; // finger travel after which the pull stiffens
 const NEST_ARM = 60;
 const LOCATION_KEY = 'point-location';
 
 const ICON_CHECK = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.5l5 5L19.5 7"/></svg>';
 const ICON_CROSS = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
-const ICON_BACK = '<svg width="8" height="13" viewBox="0 0 8 13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 1.5l-5 5 5 5"/></svg>';
 const ICON_UP = '<svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 11.5v-10M2 6l4.5-4.5L11 6"/></svg>';
 
 const clamp = (v: number, lo = 0, hi = 1): number => Math.min(hi, Math.max(lo, v));
@@ -65,7 +66,6 @@ class Screen {
   scroller: HTMLElement;
   content: HTMLElement;
   head: HTMLElement;
-  crumb: HTMLElement;
   title: HTMLElement;
   upHint: HTMLElement;
   list: HTMLElement;
@@ -80,7 +80,7 @@ class Screen {
     this.el.className = 'screen';
     this.el.innerHTML =
       '<div class="scroller"><div class="content">' +
-      `<header class="head"><div class="crumb">${ICON_BACK}<span></span></div><h1 class="title" dir="auto"></h1>` +
+      '<header class="head"><h1 class="title" dir="auto"></h1>' +
       `<div class="uphint">${ICON_UP}<span></span></div></header>` +
       '<div class="list"><div class="ghost">New item</div><div class="rows"></div>' +
       '<div class="tail"><div class="empty">Pull down to add</div></div></div>' +
@@ -88,7 +88,6 @@ class Screen {
     this.scroller = qs(this.el, '.scroller');
     this.content = qs(this.el, '.content');
     this.head = qs(this.el, '.head');
-    this.crumb = qs(this.el, '.crumb');
     this.title = qs(this.el, '.title');
     this.upHint = qs(this.el, '.uphint');
     this.list = qs(this.el, '.list');
@@ -113,9 +112,7 @@ class Screen {
     if (!item) return;
     const parentId = store.parentOf(this.nodeId);
     const parentName = parentId ? htmlToPlain(store.items[parentId].text) || 'Back' : '';
-    this.el.classList.toggle('is-root', !parentId);
     if (editing?.el !== this.title) setHtml(this.title, item.text);
-    qs(this.crumb, 'span').textContent = parentName;
     qs(this.upHint, 'span').textContent = parentName;
 
     const tracked = [this.head, ...(Array.from(this.rows.children) as HTMLElement[]), this.tail];
@@ -566,10 +563,6 @@ const findTouch = (list: TouchList, id: number): Touch | null => {
 const tap = (target: HTMLElement, x: number, y: number): void => {
   const screen = current;
   if (!screen.el.contains(target)) return;
-  if (target.closest('.crumb')) {
-    goUp();
-    return;
-  }
   if (target.closest('.title')) {
     if (screen.nodeId !== store.rootId) editTitle(x, y);
     return;
@@ -671,9 +664,10 @@ const movePull = (y: number): void => {
   const p = pull!;
   const { list, ghost, upHint } = current;
   const raw = Math.max(0, y - p.base);
-  const d = raw < 230 ? raw * 0.62 : 142.6 + (raw - 230) * 0.22;
+  // One line's height of travel opens a new line; the same distance again goes up a level
+  const d = raw < PULL_FREE ? raw * PULL_RATIO : PULL_FREE * PULL_RATIO + (raw - PULL_FREE) * 0.22;
   setY(list, d);
-  const armed = p.canUp && d >= ROW_H * 2.25 ? 2 : d >= ROW_H ? 1 : 0;
+  const armed = p.canUp && d >= ROW_H * 2 ? 2 : d >= ROW_H ? 1 : 0;
   if (armed !== p.armed) {
     p.armed = armed;
     haptic('light');
@@ -681,7 +675,7 @@ const movePull = (y: number): void => {
     upHint.classList.toggle('armed', armed === 2);
   }
   ghost.style.opacity = String(armed === 2 ? 0.3 : clamp(d / ROW_H));
-  upHint.style.opacity = p.canUp ? String(clamp((d - ROW_H * 1.3) / (ROW_H * 0.5))) : '0';
+  upHint.style.opacity = p.canUp ? String(clamp((d - ROW_H * 1.4) / (ROW_H * 0.4))) : '0';
 };
 
 const endPull = (cancelled: boolean): void => {
@@ -837,7 +831,7 @@ const layoutDrag = (): void => {
     target?.classList.add('nest-target');
     d.row.classList.toggle('intent-into', intent === 'into');
     d.row.classList.toggle('intent-out', intent === 'out');
-    d.screen.crumb.classList.toggle('drop-target', intent === 'out');
+    d.screen.title.classList.toggle('leaving', intent === 'out');
     d.intent = intent;
     d.target = target;
   }
@@ -853,7 +847,7 @@ const endDrag = (cancelled: boolean): void => {
   const seed = new Map<Element, number>();
   for (const el of Array.from(screen.rows.children)) seed.set(el, el.getBoundingClientRect().top);
   screen.el.classList.remove('dragging');
-  screen.crumb.classList.remove('drop-target');
+  screen.title.classList.remove('leaving');
   d.target?.classList.remove('nest-target');
   const settle = () => row.classList.remove('lifted', 'intent-into', 'intent-out');
 
@@ -868,7 +862,7 @@ const endDrag = (cancelled: boolean): void => {
     return;
   }
   if (!cancelled && d.intent === 'out') {
-    const headRect = screen.crumb.getBoundingClientRect();
+    const headRect = screen.head.getBoundingClientRect();
     haptic('medium');
     screen.rowEls.delete(id);
     screen.floatOut(row, rect.top, { opacity: 0, transform: `translate3d(-12px,${headRect.top - rect.top}px,0) scale(0.5)` }, 260);

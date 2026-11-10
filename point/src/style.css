@@ -87,38 +87,7 @@ body {
   position: relative;
   z-index: 3;
   background: var(--bg);
-  padding: 22px var(--pad) 12px;
-}
-.screen.is-root .head {
-  padding-top: 44px;
-}
-
-.crumb {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  height: 36px;
-  margin: 0 0 2px -2px;
-  font-size: 13px;
-  font-weight: 620;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: rgba(var(--fg-rgb), 0.42);
-  transition: color 160ms;
-}
-.crumb svg {
-  flex: none;
-}
-.crumb span {
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-.screen.is-root .crumb {
-  display: none;
-}
-.crumb.drop-target {
-  color: var(--fg);
+  padding: 44px var(--pad) 12px;
 }
 
 .title {
@@ -271,13 +240,15 @@ body {
 
 /* Editing: everything else steps back */
 .screen.editing .row:not(.is-editing) .face,
-.screen.editing .title:not(.is-editing),
-.screen.editing .crumb {
+.screen.editing .title:not(.is-editing) {
   opacity: 0.2;
 }
+/* Dragging a line out of this list */
+.title.leaving {
+  opacity: 0.3;
+}
 .face,
-.title,
-.crumb {
+.title {
   transition: opacity 180ms;
 }
 .face {
