@@ -362,9 +362,11 @@ body {
   color: var(--fg);
 }
 
+/* The empty space after the last line: tap it to add a line at the end. On a short list it fills
+   the rest of the screen; on a long one it is two lines tall. */
 .tail {
   flex: 1;
-  min-height: 46vh;
+  min-height: calc(var(--row) * 2);
   padding: 18px var(--pad);
 }
 .empty {
