@@ -9,13 +9,14 @@ import { haptic, hideSplash, onAppResume, onBackButton, onKeyboardHidden, openUr
 //
 //   tap a line            edit it (or open it, if it has things inside)
 //   tap the right edge    open any line, to put things inside it
-//   swipe right / left    complete / delete
+//   swipe left            strike it through (again to restore it)
+//   swipe right           unfold what's inside it, in place; again to fold it away
 //   pull down             new line at the top; pull as far again to go up a level
 //   tap below the list    new line at the end
 //   pinch apart           new line between two others; pinch together to go up a level
 //   hold                  pick a line up: move it, slide right to tuck it into the line above,
 //                         slide left to move it out a level
-//   pull up at the bottom clear what's completed
+//   pull up at the bottom clear what's struck through — the only way anything is deleted
 
 const store = new Store();
 if (LOCAL_ONLY) (window as unknown as { __point: unknown }).__point = { store }; // for tests against the sample outline
@@ -30,9 +31,12 @@ const PULL_RATIO = 0.875; // list travel per unit of finger travel: 64px of fing
 const PULL_FREE = 200; // finger travel after which the pull stiffens
 const NEST_ARM = 60;
 const LOCATION_KEY = 'point-location';
+const EXPANDED_KEY = 'point-expanded';
+const INDENT = 22;
+const MAX_DEPTH = 12;
 
 const ICON_CHECK = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.5l5 5L19.5 7"/></svg>';
-const ICON_CROSS = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+const ICON_FOLD = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 9l6.5 6.5L18.5 9"/></svg>';
 const ICON_UP = '<svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 11.5v-10M2 6l4.5-4.5L11 6"/></svg>';
 
 const clamp = (v: number, lo = 0, hi = 1): number => Math.min(hi, Math.max(lo, v));
@@ -42,6 +46,31 @@ const setY = (el: HTMLElement, y: number): void => {
 const qs = (root: Element, selector: string): HTMLElement => root.querySelector(selector) as HTMLElement;
 
 // ------------------------------------------------------------------- screens
+
+// Which lines are unfolded. This is how Point is being looked at on this phone, not part of the
+// outline, so it stays on the device and never touches the main app's own collapse state.
+const expanded = new Set<string>();
+try {
+  for (const id of JSON.parse(localStorage.getItem(EXPANDED_KEY) || '[]')) expanded.add(String(id));
+} catch {
+  /* start with everything folded */
+}
+const saveExpanded = (): void => {
+  try {
+    localStorage.setItem(EXPANDED_KEY, JSON.stringify(Array.from(expanded).filter((id) => store.items[id])));
+  } catch {
+    /* it just won't be remembered */
+  }
+};
+
+/** One line as it appears on a screen: which item, how deep, and whose list it is in */
+interface Vis {
+  id: string;
+  depth: number;
+  parentId: string;
+}
+
+const depthOf = (row: HTMLElement): number => Number(row.dataset.depth || 0);
 
 const htmlCache = new WeakMap<HTMLElement, string>();
 
@@ -55,7 +84,7 @@ const makeRow = (): HTMLElement => {
   const row = document.createElement('div');
   row.className = 'row';
   row.innerHTML =
-    `<div class="under"><i class="u-l">${ICON_CHECK}</i><i class="u-r">${ICON_CROSS}</i></div>` +
+    `<div class="under"><i class="u-l">${ICON_FOLD}</i><i class="u-r">${ICON_CHECK}</i></div>` +
     '<div class="face"><div class="text" dir="auto"></div><div class="count"></div></div>';
   wireEditor(qs(row, '.text'));
   return row;
@@ -74,7 +103,7 @@ class Screen {
   tail: HTMLElement;
   clearHint: HTMLElement;
   rowEls = new Map<string, HTMLElement>();
-  draft: { row: HTMLElement; beforeId: string | null } | null = null;
+  draft: { row: HTMLElement; parentId: string; beforeId: string | null } | null = null;
 
   constructor(public nodeId: string) {
     this.el.className = 'screen';
@@ -98,9 +127,45 @@ class Screen {
     wireEditor(this.title);
   }
 
-  /** Rows that can be moved and inserted between: the open ones, in order */
-  openRows(): HTMLElement[] {
-    return (Array.from(this.rows.children) as HTMLElement[]).filter((r) => r.dataset.id && !r.classList.contains('done'));
+  /** Every line on this screen, top to bottom: the list itself, plus whatever is unfolded */
+  visible(): Vis[] {
+    const out: Vis[] = [];
+    const walk = (parentId: string, depth: number): void => {
+      for (const id of store.display(parentId)) {
+        out.push({ id, depth, parentId });
+        if (depth < MAX_DEPTH && expanded.has(id)) walk(id, depth + 1);
+      }
+    };
+    walk(this.nodeId, 0);
+    return out;
+  }
+
+  /** Where a new line lands among the visible ones: before `beforeId`, or closing the open lines of `parentId` */
+  slot(vis: Vis[], parentId: string, beforeId: string | null): { at: number; depth: number } {
+    const parentAt = vis.findIndex((v) => v.id === parentId);
+    const nested = parentId !== this.nodeId && parentAt >= 0;
+    const inList = (v: Vis): boolean => v.parentId === parentId;
+    let at = beforeId ? vis.findIndex((v) => v.id === beforeId && inList(v)) : -1;
+    if (at < 0) at = vis.findIndex((v) => inList(v) && store.items[v.id].isCompleted);
+    if (at < 0) {
+      at = nested ? parentAt + 1 : vis.length;
+      if (nested) while (at < vis.length && vis[at].depth > vis[parentAt].depth) at++;
+    }
+    return { at, depth: nested ? vis[parentAt].depth + 1 : 0 };
+  }
+
+  /** Struck-through lines on screen, leaving out any that sit inside another one */
+  clearable(): string[] {
+    const out: string[] = [];
+    const covered = new Set<string>();
+    for (const v of this.visible()) {
+      if (covered.has(v.parentId)) covered.add(v.id);
+      else if (store.items[v.id].isCompleted) {
+        out.push(v.id);
+        covered.add(v.id);
+      }
+    }
+    return out;
   }
 
   /**
@@ -130,32 +195,39 @@ class Screen {
     this.content.style.opacity = '';
     this.ghost.style.display = 'none';
     this.ghost.classList.remove('armed');
+    this.ghost.style.paddingLeft = '';
     this.upHint.style.opacity = '';
     this.upHint.classList.remove('armed');
     this.clearHint.style.opacity = '';
     this.clearHint.classList.remove('armed');
 
-    const ids = store.display(this.nodeId);
-    const openN = store.openCount(this.nodeId);
+    const vis = this.visible();
     const desired: HTMLElement[] = [];
-    ids.forEach((id, i) => {
-      let row = this.rowEls.get(id);
+    const seen = new Set<string>();
+    const openBefore: number[] = [];
+    let openIndex = 0;
+    for (const v of vis) {
+      let row = this.rowEls.get(v.id);
       if (!row) {
         row = makeRow();
-        row.dataset.id = id;
-        this.rowEls.set(id, row);
+        row.dataset.id = v.id;
+        this.rowEls.set(v.id, row);
       }
-      this.updateRow(row, id, i < openN ? i : 0);
+      seen.add(v.id);
+      openBefore.push(openIndex);
+      this.updateRow(row, v, store.items[v.id].isCompleted ? 0 : openIndex++);
       desired.push(row);
-    });
+    }
     for (const id of Array.from(this.rowEls.keys())) {
-      if (!ids.includes(id)) this.rowEls.delete(id);
+      if (!seen.has(id)) this.rowEls.delete(id);
     }
     if (this.draft) {
-      let at = this.draft.beforeId ? ids.indexOf(this.draft.beforeId) : -1;
-      if (at < 0) at = openN;
-      this.draft.row.style.setProperty('--i', String(at));
-      desired.splice(at, 0, this.draft.row);
+      const { at, depth } = this.slot(vis, this.draft.parentId, this.draft.beforeId);
+      const row = this.draft.row;
+      row.dataset.depth = String(depth);
+      row.style.setProperty('--depth', String(depth));
+      row.style.setProperty('--i', String(openBefore[at] ?? openIndex));
+      desired.splice(at, 0, row);
     }
 
     const keep = new Set(desired);
@@ -170,10 +242,13 @@ class Screen {
     this.el.classList.toggle('is-empty', desired.length === 0);
 
     if (!animate) return;
+    let entering = 0;
     for (const el of [this.head, ...desired, this.tail]) {
       const from = before.get(el);
       if (from === undefined) {
-        el.animate([{ opacity: 0, transform: 'translateY(-8px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 220, easing: EASE });
+        // New lines arrive one after another, so a list unfolding reads as unfolding
+        const delay = Math.min(entering++, 9) * 24;
+        el.animate([{ opacity: 0, transform: 'translateY(-10px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 240, delay, easing: EASE, fill: 'backwards' });
         continue;
       }
       const delta = from - el.getBoundingClientRect().top;
@@ -183,11 +258,15 @@ class Screen {
     }
   }
 
-  private updateRow(row: HTMLElement, id: string, openIndex: number): void {
+  private updateRow(row: HTMLElement, v: Vis, openIndex: number): void {
+    const { id } = v;
     const item = store.items[id];
     const hasChildren = item.children.some((c) => store.items[c]);
     row.classList.toggle('done', !!item.isCompleted);
     row.classList.toggle('parent', hasChildren);
+    row.classList.toggle('expanded', hasChildren && expanded.has(id));
+    row.dataset.depth = String(v.depth);
+    row.style.setProperty('--depth', String(v.depth));
     row.style.setProperty('--i', String(openIndex));
     const text = qs(row, '.text');
     if (editing?.el !== text) setHtml(text, item.text);
@@ -353,12 +432,18 @@ const removeItem = (id: string): void => {
 };
 
 const clearCompleted = (): void => {
-  const n = store.doneCount(current.nodeId);
+  const ids = current.clearable();
   let undo: Undo | null = null;
   mutate(() => {
-    undo = store.clearCompleted(current.nodeId);
+    undo = store.removeAll(ids);
   }, true);
-  if (undo) toast(`Cleared ${n}`, undo);
+  if (undo) toast(`Cleared ${ids.length}`, undo);
+};
+
+const toggleExpanded = (id: string): void => {
+  if (!expanded.delete(id)) expanded.add(id);
+  saveExpanded();
+  current.render(true);
 };
 
 // ------------------------------------------------------------------- editing
@@ -369,6 +454,7 @@ interface Edit {
   row: HTMLElement | null;
   screen: Screen;
   id: string | null;
+  parentId: string;
   beforeId: string | null;
   original: string;
 }
@@ -409,23 +495,23 @@ const beginEdit = (edit: Edit, point?: { x: number; y: number }): void => {
   keepEditorVisible();
 };
 
-const startDraft = (beforeId: string | null, fromTop?: number): void => {
+const startDraft = (beforeId: string | null, fromTop?: number, parentId: string = current.nodeId): void => {
   if (editing) finishEdit('blur');
   const screen = current;
   const row = makeRow();
   row.dataset.draft = '1';
-  screen.draft = { row, beforeId };
+  screen.draft = { row, parentId, beforeId };
   screen.render(true, fromTop === undefined ? undefined : new Map([[row, fromTop]]));
-  beginEdit({ kind: 'draft', el: qs(row, '.text'), row, screen, id: null, beforeId, original: '' });
+  beginEdit({ kind: 'draft', el: qs(row, '.text'), row, screen, id: null, parentId, beforeId, original: '' });
 };
 
 const editItem = (row: HTMLElement, id: string, x: number, y: number): void => {
-  beginEdit({ kind: 'item', el: qs(row, '.text'), row, screen: current, id, beforeId: null, original: store.items[id].text }, { x, y });
+  beginEdit({ kind: 'item', el: qs(row, '.text'), row, screen: current, id, parentId: '', beforeId: null, original: store.items[id].text }, { x, y });
 };
 
 const editTitle = (x: number, y: number): void => {
   const screen = current;
-  beginEdit({ kind: 'title', el: screen.title, row: null, screen, id: screen.nodeId, beforeId: null, original: store.items[screen.nodeId].text }, { x, y });
+  beginEdit({ kind: 'title', el: screen.title, row: null, screen, id: screen.nodeId, parentId: '', beforeId: null, original: store.items[screen.nodeId].text }, { x, y });
 };
 
 const finishEdit = (reason: 'enter' | 'blur' | 'cancel'): void => {
@@ -450,7 +536,7 @@ const finishEdit = (reason: 'enter' | 'blur' | 'cancel'): void => {
       const texts = lines.length > 1 ? lines.map((line) => linkify(plainToHtml(line))) : [html];
       mutate(() => {
         texts.forEach((text, i) => {
-          const id = store.add(screen.nodeId, edit.beforeId, text);
+          const id = store.add(edit.parentId, edit.beforeId, text);
           if (i === 0 && id) {
             row.dataset.id = id;
             delete row.dataset.draft;
@@ -477,7 +563,7 @@ const finishEdit = (reason: 'enter' | 'blur' | 'cancel'): void => {
   }
 
   // Enter on a new line starts the next one. Focus moves first, so the keyboard never drops.
-  if (keepTyping) startDraft(edit.beforeId);
+  if (keepTyping) startDraft(edit.beforeId, undefined, edit.parentId);
   el.contentEditable = 'false';
   el.removeAttribute('contenteditable');
   if (document.activeElement === el) el.blur();
@@ -547,6 +633,7 @@ const g = {
 };
 
 let lastScrollAt = -1000;
+let lastHandledTouch = -1000;
 app.addEventListener('scroll', () => {
   lastScrollAt = performance.now();
 }, { capture: true, passive: true });
@@ -586,30 +673,52 @@ const tap = (target: HTMLElement, x: number, y: number): void => {
   startDraft(null);
 };
 
-// ---- swipe: right completes, left deletes
+// ---- swipe: left strikes a line through, right unfolds or folds what's inside it
 
-let swipe: { row: HTMLElement; face: HTMLElement; under: HTMLElement; id: string; base: number; dx: number; armed: -1 | 0 | 1 } | null = null;
+interface Swipe {
+  row: HTMLElement;
+  face: HTMLElement;
+  under: HTMLElement;
+  id: string;
+  base: number;
+  dx: number;
+  armed: -1 | 0 | 1;
+  canFold: boolean;
+}
+
+let swipe: Swipe | null = null;
 
 const beginSwipe = (x: number): void => {
   const row = g.row!;
   g.mode = 'swipe';
-  swipe = { row, face: qs(row, '.face'), under: qs(row, '.under'), id: row.dataset.id!, base: x, dx: 0, armed: 0 };
+  swipe = {
+    row,
+    face: qs(row, '.face'),
+    under: qs(row, '.under'),
+    id: row.dataset.id!,
+    base: x,
+    dx: 0,
+    armed: 0,
+    canFold: row.classList.contains('parent'),
+  };
   swipe.face.getAnimations().forEach((a) => a.cancel());
   row.classList.add('swiping');
 };
 
 const moveSwipe = (x: number): void => {
   const s = swipe!;
-  s.dx = x - s.base;
+  const raw = x - s.base;
+  // A line with nothing inside has nothing to unfold: it gives a little, then holds
+  s.dx = raw > 0 && !s.canFold ? raw * 0.16 : raw;
   s.face.style.transform = `translate3d(${s.dx}px,0,0)`;
   s.under.dataset.dir = s.dx > 0 ? '1' : '-1';
   s.under.style.setProperty('--p', String(clamp(Math.abs(s.dx) / SWIPE_ARM)));
-  const armed = s.dx > SWIPE_ARM ? 1 : s.dx < -SWIPE_ARM ? -1 : 0;
+  const armed = s.dx > SWIPE_ARM && s.canFold ? 1 : s.dx < -SWIPE_ARM ? -1 : 0;
   if (armed !== s.armed) {
     s.armed = armed;
     if (armed) haptic('light');
-    s.row.classList.toggle('arm-done', armed === 1);
-    s.row.classList.toggle('arm-del', armed === -1);
+    s.row.classList.toggle('arm-done', armed === -1);
+    s.row.classList.toggle('arm-fold', armed === 1);
   }
 };
 
@@ -619,31 +728,23 @@ const endSwipe = (cancelled: boolean): void => {
   let armed: -1 | 0 | 1 = cancelled ? 0 : s.armed;
   // A quick flick counts even if it didn't travel far
   if (!cancelled && !armed && Math.abs(g.vx) > 0.6 && Math.abs(s.dx) > 26 && Math.sign(g.vx) === Math.sign(s.dx)) {
-    armed = s.dx > 0 ? 1 : -1;
+    armed = s.dx < 0 ? -1 : s.canFold ? 1 : 0;
   }
-  const from = `translate3d(${s.dx}px,0,0)`;
   const { row, face, id } = s;
+  const from = `translate3d(${s.dx}px,0,0)`;
 
-  if (armed === -1) {
-    haptic('medium');
-    row.classList.add('arm-del');
-    const out = face.animate([{ transform: from }, { transform: 'translate3d(-105%,0,0)' }], { duration: 170, easing: 'ease-in', fill: 'forwards' });
-    // If another gesture has already started, wait for it rather than redrawing underneath it
-    const remove = (): void => {
-      if (isGesturing()) window.setTimeout(remove, 120);
-      else removeItem(id);
-    };
-    out.onfinish = remove;
-    return;
-  }
-
+  // Either way the line settles back where it was; what changes is the list around it
   face.style.transform = '';
   const back = face.animate([{ transform: from }, { transform: 'translate3d(0,0,0)' }], { duration: 280, easing: EASE });
   back.onfinish = () => row.classList.remove('swiping');
-  row.classList.remove('arm-done', 'arm-del');
-  if (armed === 1 && store.items[id]) {
+  row.classList.remove('arm-done', 'arm-fold');
+  if (!armed || !store.items[id]) return;
+  if (armed === -1) {
     haptic('medium');
     mutate(() => store.setCompleted(id, !store.items[id].isCompleted), true);
+  } else {
+    haptic('light');
+    toggleExpanded(id);
   }
 };
 
@@ -699,8 +800,7 @@ let pullUp: { base: number; armed: boolean } | null = null;
 const beginPullUp = (y: number): void => {
   g.mode = 'pullup';
   pullUp = { base: y, armed: false };
-  const n = store.doneCount(current.nodeId);
-  current.clearHint.textContent = `Clear ${n} completed`;
+  current.clearHint.textContent = `Clear ${current.clearable().length} completed`;
 };
 
 const movePullUp = (y: number): void => {
@@ -729,18 +829,26 @@ const endPullUp = (cancelled: boolean): void => {
 
 // ---- hold: pick a line up and move it
 
+/** A line together with whatever is unfolded beneath it; these move as one */
+interface Block {
+  id: string;
+  els: HTMLElement[];
+  top: number;
+  height: number;
+}
+
 interface Drag {
   screen: Screen;
   row: HTMLElement;
   id: string;
-  els: HTMLElement[];
+  parentId: string;
+  blocks: Block[];
   from: number;
   to: number;
-  tops: number[];
-  heights: number[];
   y0: number;
   x0: number;
   scroll0: number;
+  canOut: boolean;
   intent: 'move' | 'into' | 'out';
   target: HTMLElement | null;
   frame: number;
@@ -750,26 +858,50 @@ let drag: Drag | null = null;
 
 const beginDrag = (): void => {
   const row = g.row;
-  if (g.mode !== 'pending' || !row || !row.dataset.id || transitioning) return;
+  const id = row?.dataset.id;
+  if (g.mode !== 'pending' || !row || !id || transitioning) return;
   const screen = current;
-  const els = screen.openRows();
-  const from = els.indexOf(row);
+  const parentId = store.parentOf(id);
+  if (!parentId) return;
+
+  // A line travels folded: what's inside it comes along unseen
+  if (expanded.delete(id)) {
+    saveExpanded();
+    screen.render(true);
+    for (const el of Array.from(screen.rows.children)) el.getAnimations().forEach((a) => a.finish());
+  }
+
+  // It moves among the open lines of its own list
+  const all = Array.from(screen.rows.children) as HTMLElement[];
+  const depth = depthOf(row);
+  const blocks: Block[] = [];
+  for (const sibling of store.display(parentId)) {
+    const head = screen.rowEls.get(sibling);
+    const start = head ? all.indexOf(head) : -1;
+    if (!head || start < 0 || store.items[sibling].isCompleted) continue;
+    let end = start + 1;
+    while (end < all.length && depthOf(all[end]) > depth) end++;
+    const last = all[end - 1];
+    blocks.push({ id: sibling, els: all.slice(start, end), top: head.offsetTop, height: last.offsetTop + last.offsetHeight - head.offsetTop });
+  }
+  const from = blocks.findIndex((b) => b.id === id);
   if (from < 0) return;
+
   g.mode = 'drag';
   haptic('medium');
   window.getSelection()?.removeAllRanges();
   drag = {
     screen,
     row,
-    id: row.dataset.id,
-    els,
+    id,
+    parentId,
+    blocks,
     from,
     to: from,
-    tops: els.map((el) => el.offsetTop),
-    heights: els.map((el) => el.offsetHeight),
     y0: g.y,
     x0: g.x,
     scroll0: screen.scroller.scrollTop,
+    canOut: store.parentOf(parentId) !== null,
     intent: 'move',
     target: null,
     frame: 0,
@@ -801,29 +933,30 @@ const layoutDrag = (): void => {
   setY(d.row, dy || 0.01);
 
   // Where it would land: after every other line whose middle is above its own
-  const center = d.tops[d.from] + d.heights[d.from] / 2 + dy;
+  const mine = d.blocks[d.from];
+  const center = mine.top + mine.height / 2 + dy;
   let to = 0;
-  d.els.forEach((_, i) => {
-    if (i !== d.from && d.tops[i] + d.heights[i] / 2 < center) to++;
+  d.blocks.forEach((b, i) => {
+    if (i !== d.from && b.top + b.height / 2 < center) to++;
   });
   if (to !== d.to) {
     d.to = to;
     haptic('tick');
   }
-  const h = d.heights[d.from];
   let others = 0;
   let above: HTMLElement | null = null;
-  for (let i = 0; i < d.els.length; i++) {
+  for (let i = 0; i < d.blocks.length; i++) {
     if (i === d.from) continue;
-    const el = d.els[i];
+    const block = d.blocks[i];
     const slot = others < to ? others : others + 1;
-    if (others === to - 1) above = el;
-    setY(el, slot < i ? -h : slot > i ? h : 0);
+    if (others === to - 1) above = block.els[0];
+    const shift = slot < i ? -mine.height : slot > i ? mine.height : 0;
+    for (const el of block.els) setY(el, shift);
     others++;
   }
 
   // Sideways says how deep: right tucks it into the line above, left moves it out a level
-  const intent: Drag['intent'] = dx > NEST_ARM && above ? 'into' : dx < -NEST_ARM && path.length > 1 ? 'out' : 'move';
+  const intent: Drag['intent'] = dx > NEST_ARM && above ? 'into' : dx < -NEST_ARM && d.canOut ? 'out' : 'move';
   const target = intent === 'into' ? above : null;
   if (intent !== d.intent || target !== d.target) {
     if (intent !== d.intent) haptic('light');
@@ -831,7 +964,7 @@ const layoutDrag = (): void => {
     target?.classList.add('nest-target');
     d.row.classList.toggle('intent-into', intent === 'into');
     d.row.classList.toggle('intent-out', intent === 'out');
-    d.screen.title.classList.toggle('leaving', intent === 'out');
+    d.screen.title.classList.toggle('leaving', intent === 'out' && d.parentId === d.screen.nodeId);
     d.intent = intent;
     d.target = target;
   }
@@ -849,32 +982,37 @@ const endDrag = (cancelled: boolean): void => {
   screen.el.classList.remove('dragging');
   screen.title.classList.remove('leaving');
   d.target?.classList.remove('nest-target');
-  const settle = () => row.classList.remove('lifted', 'intent-into', 'intent-out');
+  const settle = (): void => {
+    window.setTimeout(() => row.classList.remove('lifted', 'intent-into', 'intent-out'), 200);
+  };
+  // When the line ends up somewhere that isn't on this screen, it shrinks away towards it
+  const vanish = (towards: DOMRect, dx: number): void => {
+    screen.rowEls.delete(id);
+    screen.floatOut(row, rect.top, { opacity: 0, transform: `translate3d(${dx}px,${towards.top - rect.top}px,0) scale(0.5)` }, 250);
+  };
 
   if (!cancelled && d.intent === 'into' && d.target?.dataset.id) {
     const targetId = d.target.dataset.id;
-    const targetRect = d.target.getBoundingClientRect();
     haptic('medium');
-    screen.rowEls.delete(id);
-    screen.floatOut(row, rect.top, { opacity: 0, transform: `translate3d(24px,${targetRect.top - rect.top}px,0) scale(0.5)` }, 240);
+    if (expanded.has(targetId)) settle();
+    else vanish(d.target.getBoundingClientRect(), 24);
     mutate(() => store.moveInto(id, targetId), true, seed);
     screen.flash(targetId);
     return;
   }
   if (!cancelled && d.intent === 'out') {
-    const headRect = screen.head.getBoundingClientRect();
     haptic('medium');
-    screen.rowEls.delete(id);
-    screen.floatOut(row, rect.top, { opacity: 0, transform: `translate3d(-12px,${headRect.top - rect.top}px,0) scale(0.5)` }, 260);
+    if (d.parentId === screen.nodeId) vanish(screen.head.getBoundingClientRect(), -12);
+    else settle();
     mutate(() => store.moveOut(id), true, seed);
     return;
   }
 
-  const order = d.els.filter((el) => el !== row).map((el) => el.dataset.id!);
+  const order = d.blocks.filter((b) => b.id !== id).map((b) => b.id);
   order.splice(cancelled ? d.from : d.to, 0, id);
   if (!cancelled && d.to !== d.from) haptic('light');
-  mutate(() => store.reorder(screen.nodeId, order), true, seed);
-  window.setTimeout(settle, 200);
+  mutate(() => store.reorder(d.parentId, order), true, seed);
+  settle();
 };
 
 // ---- pinch: apart opens a new line between two others, together goes up a level
@@ -885,6 +1023,7 @@ interface Pinch {
   above: HTMLElement[];
   below: HTMLElement[];
   boundary: number;
+  parentId: string;
   beforeId: string | null;
   armed: -1 | 0 | 1;
   canUp: boolean;
@@ -898,21 +1037,26 @@ const beginPinch = (e: TouchEvent): void => {
   const screen = current;
   g.mode = 'pinch';
   const mid = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-  const open = screen.openRows();
+  const all = Array.from(screen.rows.children) as HTMLElement[];
   let k = 0;
-  for (const el of open) {
+  for (const el of all) {
     const r = el.getBoundingClientRect();
     if (r.top + r.height / 2 < mid) k++;
   }
-  const all = Array.from(screen.rows.children) as HTMLElement[];
-  const at = k < open.length ? all.indexOf(open[k]) : open.length ? all.indexOf(open[open.length - 1]) + 1 : 0;
+  // The new line joins the list of the line just below the gap, at that line's depth
+  const belowId = all[k]?.dataset.id;
+  const parentId = (belowId && store.parentOf(belowId)) || screen.nodeId;
+  const beforeId = belowId && !store.items[belowId].isCompleted ? belowId : null;
+  const { at, depth } = screen.slot(screen.visible(), parentId, beforeId);
+  screen.ghost.style.paddingLeft = `calc(var(--pad) + ${depth * INDENT}px)`;
   pinch = {
     screen,
     d0: touchDistance(e),
     above: [screen.head, ...all.slice(0, at)],
     below: [...all.slice(at), screen.tail],
     boundary: all[at] ? all[at].offsetTop : screen.rows.offsetHeight,
-    beforeId: k < open.length ? open[k].dataset.id! : null,
+    parentId,
+    beforeId,
     armed: 0,
     canUp: path.length > 1,
   };
@@ -955,7 +1099,7 @@ const endPinch = (cancelled: boolean): void => {
   pinch = null;
   const { screen } = p;
   if (!cancelled && p.armed === 1) {
-    startDraft(p.beforeId, screen.ghost.getBoundingClientRect().top);
+    startDraft(p.beforeId, screen.ghost.getBoundingClientRect().top, p.parentId);
     return;
   }
   if (!cancelled && p.armed === -1 && goUp()) return;
@@ -1031,7 +1175,7 @@ const onTouchMove = (e: TouchEvent): void => {
         beginSwipe(g.x);
       } else if (vertical && dy > 0 && s.scrollTop <= 0) {
         beginPull(g.y);
-      } else if (vertical && dy < 0 && s.scrollTop + s.clientHeight >= s.scrollHeight - 1 && store.doneCount(current.nodeId) > 0) {
+      } else if (vertical && dy < 0 && s.scrollTop + s.clientHeight >= s.scrollHeight - 1 && current.clearable().length > 0) {
         beginPullUp(g.y);
       } else {
         g.mode = 'scroll';
@@ -1077,6 +1221,8 @@ const onTouchEnd = (e: TouchEvent): void => {
   };
 
   if (g.mode === 'pinch') {
+    lastHandledTouch = performance.now();
+    if (e.cancelable) e.preventDefault();
     if (remaining < 2) {
       g.mode = 'spent';
       endPinch(cancelled);
@@ -1089,6 +1235,12 @@ const onTouchEnd = (e: TouchEvent): void => {
   const mode = g.mode;
   clearTimeout(g.timer);
   g.mode = 'spent';
+  // Everything here is handled as a touch. Without this, lifting a held finger that never
+  // moved would also arrive as a click and open or edit the line that was just picked up.
+  if (mode !== 'scroll' && mode !== 'native' && mode !== 'spent' && mode !== 'idle') {
+    lastHandledTouch = performance.now();
+    if (e.cancelable) e.preventDefault();
+  }
   switch (mode) {
     case 'pending':
       if (!cancelled && g.target) {
@@ -1131,7 +1283,7 @@ app.addEventListener('contextmenu', (e) => {
 
 // Mouse (and anything else that isn't touch) gets the tap behaviours, which is enough for a desktop browser
 app.addEventListener('click', (e) => {
-  if (!booted || transitioning) return;
+  if (!booted || transitioning || performance.now() - lastHandledTouch < 500) return;
   const target = e.target as HTMLElement;
   if (editing) {
     if (!editing.el.contains(target)) finishEdit('blur');

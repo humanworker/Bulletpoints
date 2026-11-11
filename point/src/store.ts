@@ -162,14 +162,6 @@ export class Store {
     return n;
   }
 
-  doneCount(parentId: string): number {
-    const parent = this.items[parentId];
-    if (!parent) return 0;
-    let n = 0;
-    for (const id of parent.children) if (this.items[id]?.isCompleted) n++;
-    return n;
-  }
-
   subtreeSize(id: string): number {
     let n = 0;
     const stack = [id];
@@ -273,54 +265,63 @@ export class Store {
 
   /** Delete an item and everything inside it */
   remove(id: string): Undo | null {
-    const parentId = this.parentOf(id);
-    if (!parentId || !this.items[id]) return null;
-    return this.removeMany(parentId, [id]);
+    return this.removeAll([id]);
   }
 
-  clearCompleted(parentId: string): Undo | null {
-    const parent = this.items[parentId];
-    if (!parent) return null;
-    const done = parent.children.filter((c) => this.items[c]?.isCompleted);
-    if (done.length === 0) return null;
-    return this.removeMany(parentId, done);
-  }
-
-  private removeMany(parentId: string, ids: string[]): Undo {
-    const parent = this.items[parentId];
-    const before = parent.children;
-    const removed: ItemMap = {};
-    const items = { ...this.items };
-    const stack = [...ids];
-    while (stack.length) {
-      const current = stack.pop()!;
-      const item = items[current];
-      if (!item) continue;
-      removed[current] = item;
-      delete items[current];
-      stack.push(...item.children);
+  /** Delete several items, wherever they sit, as one change with one undo */
+  removeAll(ids: string[]): Undo | null {
+    const groups = new Map<string, string[]>();
+    for (const id of ids) {
+      const parentId = this.parentOf(id);
+      if (!parentId || !this.items[id]) continue;
+      groups.set(parentId, [...(groups.get(parentId) ?? []), id]);
     }
-    items[parentId] = { ...parent, children: before.filter((c) => !ids.includes(c)) };
+    if (groups.size === 0) return null;
+
+    const items = { ...this.items };
+    const removed: ItemMap = {};
+    const before = new Map<string, string[]>();
+    groups.forEach((gone, parentId) => {
+      before.set(parentId, this.items[parentId].children);
+      const stack = [...gone];
+      while (stack.length) {
+        const current = stack.pop()!;
+        const item = items[current];
+        if (!item) continue;
+        removed[current] = item;
+        delete items[current];
+        stack.push(...item.children);
+      }
+    });
+    groups.forEach((gone, parentId) => {
+      const parent = items[parentId];
+      if (parent) items[parentId] = { ...parent, children: parent.children.filter((c) => !gone.includes(c)) };
+    });
     this.commit(items);
 
     return () => {
-      const now = this.items[parentId];
-      if (!now) return;
-      // Put each one back after the nearest earlier sibling that still exists
-      const children = [...now.children];
-      for (const id of ids) {
-        if (children.includes(id)) continue;
-        let at = 0;
-        for (let i = before.indexOf(id) - 1; i >= 0; i--) {
-          const anchor = children.indexOf(before[i]);
-          if (anchor >= 0) {
-            at = anchor + 1;
-            break;
+      const next = { ...this.items, ...removed };
+      groups.forEach((gone, parentId) => {
+        const now = next[parentId];
+        if (!now) return;
+        // Put each one back after the nearest earlier sibling that still exists
+        const was = before.get(parentId)!;
+        const children = [...now.children];
+        for (const id of gone) {
+          if (children.includes(id)) continue;
+          let at = 0;
+          for (let i = was.indexOf(id) - 1; i >= 0; i--) {
+            const anchor = children.indexOf(was[i]);
+            if (anchor >= 0) {
+              at = anchor + 1;
+              break;
+            }
           }
+          children.splice(at, 0, id);
         }
-        children.splice(at, 0, id);
-      }
-      this.commit({ ...this.items, ...removed, [parentId]: { ...now, children } });
+        next[parentId] = { ...now, children };
+      });
+      this.commit(next);
     };
   }
 

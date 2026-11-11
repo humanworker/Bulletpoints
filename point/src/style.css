@@ -130,7 +130,8 @@ body {
   min-height: var(--row);
   display: flex;
   align-items: center;
-  padding: 14px 64px 14px var(--pad);
+  /* Unfolded lines step in under the line they belong to */
+  padding: 14px 64px 14px calc(var(--pad) + var(--depth, 0) * 22px);
   background: var(--bg);
   will-change: transform;
 }
@@ -201,6 +202,13 @@ body {
 .row.done .count {
   opacity: 0.5;
 }
+/* Once a line is unfolded its contents speak for themselves */
+.count {
+  transition: opacity 200ms;
+}
+.row.expanded .count {
+  opacity: 0;
+}
 
 /* What a swipe reveals */
 .under {
@@ -225,17 +233,23 @@ body {
 .under[data-dir='-1'] .u-l {
   visibility: hidden;
 }
+.under svg {
+  transition: transform 200ms var(--ease);
+}
+.row.expanded .u-l svg {
+  transform: rotate(180deg);
+}
+.row:not(.parent) .u-l {
+  visibility: hidden;
+}
 .row.arm-done .under {
   background: var(--green);
   color: #fff;
 }
-.row.done.arm-done .under {
-  background: rgba(var(--fg-rgb), 0.16);
+.row.done.arm-done .under,
+.row.arm-fold .under {
+  background: rgba(var(--fg-rgb), 0.14);
   color: var(--fg);
-}
-.row.arm-del .under {
-  background: var(--red);
-  color: #fff;
 }
 
 /* Editing: everything else steps back */

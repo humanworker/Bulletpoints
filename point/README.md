@@ -6,26 +6,33 @@ time, with no buttons, toolbars or menus.
 
 ## How it works
 
-Each screen is one list: the children of one bullet. Open items sit on top, completed ones sink to
-the bottom.
+Each screen is one list: the children of one bullet. Open items sit on top, struck-through ones
+sink to the bottom. Any line with items inside can be unfolded in place, showing them indented
+beneath it; every gesture works on those lines too.
 
 | Do this | To |
 | --- | --- |
 | Tap a line | Edit it. If it has items inside, open it instead |
 | Tap the right edge of a line | Open it, even if it's empty (this is how you start a sub-list) |
 | Tap the title | Rename the list you're in |
-| Swipe right | Complete (again to un-complete) |
-| Swipe left | Delete, with everything inside it |
+| Swipe left | Strike it through (again to restore it) |
+| Swipe right | Unfold what's inside it, in place; again to fold it away |
 | Pull down | New line at the top. Pull as far again to go up a level |
 | Tap below the list | New line at the end |
 | Pinch apart | New line between two others |
 | Pinch together, or Back | Go up a level |
 | Hold a line | Pick it up and move it. Slide right to tuck it into the line above; slide left to move it out a level |
-| Pull up at the bottom | Clear the completed lines |
+| Pull up at the bottom | Clear every struck-through line on screen |
 
 While typing a new line, Enter starts the next one; Enter on an empty line (or Backspace) stops.
-Pasting several lines makes several items. Emptying a line deletes it. Deleting and clearing show
-an Undo for a few seconds.
+Pasting several lines makes several items.
+
+Nothing is deleted by a swipe. To remove a line, strike it through and then clear; clearing shows
+an Undo for a few seconds. (Erasing all of a line's text and leaving it also removes it, with the
+same Undo.)
+
+Which lines are unfolded is remembered on the phone only. It is separate from the main app's
+collapse state, which Point never changes.
 
 Things Point deliberately leaves out: search, formatting, font sizes, tasks, shortcuts, collapse
 state, settings. It keeps whatever the main app stored for those and never changes them. The theme
