@@ -11,6 +11,7 @@ export interface Item {
   isBold?: boolean;
   isItalic?: boolean;
   isUnderlined?: boolean;
+  isDivider?: boolean; // a horizontal rule, not text: made by pinching far apart in Point
 }
 
 export type ItemMap = Record<string, Item>;

@@ -21,6 +21,7 @@ const itemsEqual = (a?: Item, b?: Item): boolean => {
     !!a.collapsed === !!b.collapsed &&
     !!a.isCompleted === !!b.isCompleted &&
     !!a.isTask === !!b.isTask &&
+    !!a.isDivider === !!b.isDivider &&
     !!a.isShortcut === !!b.isShortcut &&
     !!a.isBold === !!b.isBold &&
     !!a.isItalic === !!b.isItalic &&
@@ -154,6 +155,23 @@ export class Store {
     return open.concat(done);
   }
 
+  /** Open items that are real lines: dividers don't count as things inside a line */
+  openLineCount(parentId: string): number {
+    const parent = this.items[parentId];
+    if (!parent) return 0;
+    let n = 0;
+    for (const id of parent.children) {
+      const child = this.items[id];
+      if (child && !child.isCompleted && !child.isDivider) n++;
+    }
+    return n;
+  }
+
+  /** True when a line has anything inside it other than dividers */
+  hasLines(id: string): boolean {
+    return !!this.items[id]?.children.some((c) => this.items[c] && !this.items[c].isDivider);
+  }
+
   openCount(parentId: string): number {
     const parent = this.items[parentId];
     if (!parent) return 0;
@@ -176,7 +194,7 @@ export class Store {
     while (stack.length) {
       const item = this.items[stack.pop()!];
       if (!item) continue;
-      n++;
+      if (!item.isDivider || item.id === id) n++;
       stack.push(...item.children);
     }
     return n;
@@ -185,7 +203,7 @@ export class Store {
   // -------------------------------------------------------------- mutations
 
   /** Insert a new item before `beforeId` (as displayed), or at the end of the open items */
-  add(parentId: string, beforeId: string | null, html: string): string | null {
+  add(parentId: string, beforeId: string | null, html: string, extra: Partial<Item> = {}): string | null {
     const parent = this.items[parentId];
     if (!parent) return null;
     const id = newId();
@@ -195,10 +213,15 @@ export class Store {
     order.splice(index, 0, id);
     this.commit({
       ...this.items,
-      [id]: blankItem(id, html),
+      [id]: { ...blankItem(id, html), ...extra },
       [parentId]: { ...parent, children: order },
     });
     return id;
+  }
+
+  /** Insert a divider line before `beforeId` (as displayed), or at the end of the open items */
+  addDivider(parentId: string, beforeId: string | null): string | null {
+    return this.add(parentId, beforeId, '', { isDivider: true });
   }
 
   setText(id: string, html: string): void {

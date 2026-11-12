@@ -12,7 +12,8 @@ import { haptic, hideSplash, onAppResume, onBackButton, onKeyboardHidden, openUr
 //   swipe right / left    complete / delete
 //   pull down             new line at the top; pull as far again to go up a level
 //   tap below the list    new line at the end
-//   pinch apart           new line between two others; pinch together to go up a level
+//   pinch apart           new line between two others; pinch much further for a divider line;
+//                         pinch together to go up a level
 //   hold                  pick a line up: move it, slide right to tuck it into the line above,
 //                         slide left to move it out a level
 //   pull up at the bottom clear what's completed
@@ -29,6 +30,7 @@ const HOLD_MS = 330;
 const PULL_RATIO = 0.875; // list travel per unit of finger travel: 64px of finger per step
 const PULL_FREE = 200; // finger travel after which the pull stiffens
 const NEST_ARM = 60;
+const DIVIDER_ARM = 120; // finger travel apart after which a pinch makes a divider instead of a line
 const LOCATION_KEY = 'point-location';
 
 const ICON_CHECK = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.5l5 5L19.5 7"/></svg>';
@@ -129,7 +131,7 @@ class Screen {
     this.content.style.transform = '';
     this.content.style.opacity = '';
     this.ghost.style.display = 'none';
-    this.ghost.classList.remove('armed');
+    this.ghost.classList.remove('armed', 'divider');
     this.upHint.style.opacity = '';
     this.upHint.classList.remove('armed');
     this.clearHint.style.opacity = '';
@@ -185,13 +187,14 @@ class Screen {
 
   private updateRow(row: HTMLElement, id: string, openIndex: number): void {
     const item = store.items[id];
-    const hasChildren = item.children.some((c) => store.items[c]);
+    const hasChildren = store.hasLines(id);
     row.classList.toggle('done', !!item.isCompleted);
     row.classList.toggle('parent', hasChildren);
+    row.classList.toggle('divider', !!item.isDivider);
     row.style.setProperty('--i', String(openIndex));
     const text = qs(row, '.text');
-    if (editing?.el !== text) setHtml(text, item.text);
-    const open = store.openCount(id);
+    if (editing?.el !== text) setHtml(text, item.isDivider ? '' : item.text);
+    const open = store.openLineCount(id);
     qs(row, '.count').textContent = hasChildren ? (open ? String(open) : '✓') : '';
   }
 
@@ -571,13 +574,13 @@ const tap = (target: HTMLElement, x: number, y: number): void => {
   if (row) {
     const id = row.dataset.id;
     const item = id ? store.items[id] : null;
-    if (!id || !item) return;
+    if (!id || !item || item.isDivider) return;
     const link = target.closest('a');
     if (link) {
       openUrl((link as HTMLAnchorElement).href);
       return;
     }
-    const hasChildren = item.children.some((c) => store.items[c]);
+    const hasChildren = store.hasLines(id);
     if (hasChildren || x > row.getBoundingClientRect().right - EDGE_ZONE) drill(id);
     else editItem(row, id, x, y);
     return;
@@ -601,6 +604,8 @@ const beginSwipe = (x: number): void => {
 const moveSwipe = (x: number): void => {
   const s = swipe!;
   s.dx = x - s.base;
+  // A divider can only be deleted
+  if (store.items[s.id]?.isDivider) s.dx = Math.min(0, s.dx);
   s.face.style.transform = `translate3d(${s.dx}px,0,0)`;
   s.under.dataset.dir = s.dx > 0 ? '1' : '-1';
   s.under.style.setProperty('--p', String(clamp(Math.abs(s.dx) / SWIPE_ARM)));
@@ -823,7 +828,7 @@ const layoutDrag = (): void => {
   }
 
   // Sideways says how deep: right tucks it into the line above, left moves it out a level
-  const intent: Drag['intent'] = dx > NEST_ARM && above ? 'into' : dx < -NEST_ARM && path.length > 1 ? 'out' : 'move';
+  const intent: Drag['intent'] = dx > NEST_ARM && above && !above.classList.contains('divider') ? 'into' : dx < -NEST_ARM && path.length > 1 ? 'out' : 'move';
   const target = intent === 'into' ? above : null;
   if (intent !== d.intent || target !== d.target) {
     if (intent !== d.intent) haptic('light');
@@ -886,7 +891,7 @@ interface Pinch {
   below: HTMLElement[];
   boundary: number;
   beforeId: string | null;
-  armed: -1 | 0 | 1;
+  armed: -1 | 0 | 1 | 2; // 1: new line, 2: divider
   canUp: boolean;
 }
 
@@ -933,7 +938,7 @@ const movePinch = (e: TouchEvent): void => {
     ghost.style.opacity = String(clamp(gap / ROW_H));
     content.style.transform = '';
     content.style.opacity = '';
-    armed = gap >= ROW_H * 0.9 ? 1 : 0;
+    armed = delta >= DIVIDER_ARM ? 2 : gap >= ROW_H * 0.9 ? 1 : 0;
   } else {
     p.above.forEach((el) => setY(el, 0));
     p.below.forEach((el) => setY(el, 0));
@@ -946,7 +951,8 @@ const movePinch = (e: TouchEvent): void => {
   if (armed !== p.armed) {
     p.armed = armed;
     haptic('light');
-    ghost.classList.toggle('armed', armed === 1);
+    ghost.classList.toggle('armed', armed >= 1);
+    ghost.classList.toggle('divider', armed === 2);
   }
 };
 
@@ -956,6 +962,11 @@ const endPinch = (cancelled: boolean): void => {
   const { screen } = p;
   if (!cancelled && p.armed === 1) {
     startDraft(p.beforeId, screen.ghost.getBoundingClientRect().top);
+    return;
+  }
+  if (!cancelled && p.armed === 2) {
+    haptic('medium');
+    mutate(() => store.addDivider(screen.nodeId, p.beforeId), true);
     return;
   }
   if (!cancelled && p.armed === -1 && goUp()) return;
