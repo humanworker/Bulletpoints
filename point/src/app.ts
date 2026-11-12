@@ -3,6 +3,7 @@ import './style.css';
 import { LOCAL_ONLY } from './flags';
 import { Store, Undo } from './store';
 import { cleanEditedHtml, htmlToPlain, linkify, plainToHtml } from './text';
+import { Today } from './todoist';
 import { haptic, hideSplash, onAppResume, onBackButton, onKeyboardHidden, openUrl, syncSystemBars } from './native';
 
 // Point has no buttons. A list is a stack of lines, and everything is done to the lines directly:
@@ -11,6 +12,7 @@ import { haptic, hideSplash, onAppResume, onBackButton, onKeyboardHidden, openUr
 //   tap the right edge    open any line, to put things inside it
 //   swipe left            strike it through (again to restore it)
 //   swipe right           unfold what's inside it, in place; again to fold it away
+//   swipe right, further  send it to Todoist, due today (marked with a point); again to take it back
 //   pull down             new line at the top; pull as far again to go up a level
 //   tap below the list    new line at the end
 //   pinch apart           new line between two others; pinch together to go up a level
@@ -19,13 +21,15 @@ import { haptic, hideSplash, onAppResume, onBackButton, onKeyboardHidden, openUr
 //   pull up at the bottom clear what's struck through — the only way anything is deleted
 
 const store = new Store();
-if (LOCAL_ONLY) (window as unknown as { __point: unknown }).__point = { store }; // for tests against the sample outline
+const today = new Today(store);
+if (LOCAL_ONLY) (window as unknown as { __point: unknown }).__point = { store, today }; // for tests against the sample outline
 const app = document.getElementById('app')!;
 
 const EASE = 'cubic-bezier(0.2, 0.8, 0.2, 1)';
 const ROW_H = 56;
 const EDGE_ZONE = 60;
 const SWIPE_ARM = 76;
+const TODAY_ARM = SWIPE_ARM * 2; // as far again, like the second stop of a pull
 const HOLD_MS = 330;
 const PULL_RATIO = 0.875; // list travel per unit of finger travel: 64px of finger per step
 const PULL_FREE = 200; // finger travel after which the pull stiffens
@@ -37,6 +41,7 @@ const MAX_DEPTH = 12;
 
 const ICON_CHECK = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.5l5 5L19.5 7"/></svg>';
 const ICON_FOLD = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 9l6.5 6.5L18.5 9"/></svg>';
+const ICON_POINT = '<svg width="22" height="22" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5" fill="currentColor" stroke="currentColor" stroke-width="2.4"/></svg>';
 const ICON_UP = '<svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 11.5v-10M2 6l4.5-4.5L11 6"/></svg>';
 
 const clamp = (v: number, lo = 0, hi = 1): number => Math.min(hi, Math.max(lo, v));
@@ -84,8 +89,8 @@ const makeRow = (): HTMLElement => {
   const row = document.createElement('div');
   row.className = 'row';
   row.innerHTML =
-    `<div class="under"><i class="u-l">${ICON_FOLD}</i><i class="u-r">${ICON_CHECK}</i></div>` +
-    '<div class="face"><div class="text" dir="auto"></div><div class="count"></div></div>';
+    `<div class="under"><span class="u-left"><i class="u-l">${ICON_FOLD}</i><i class="u-t">${ICON_POINT}</i></span><i class="u-r">${ICON_CHECK}</i></div>` +
+    '<div class="face"><div class="text" dir="auto"></div><div class="count"></div><div class="point"></div></div>';
   wireEditor(qs(row, '.text'));
   return row;
 };
@@ -265,6 +270,8 @@ class Screen {
     row.classList.toggle('done', !!item.isCompleted);
     row.classList.toggle('parent', hasChildren);
     row.classList.toggle('expanded', hasChildren && expanded.has(id));
+    row.classList.toggle('today', today.isMarked(id));
+    row.classList.toggle('today-pending', today.isPending(id));
     row.dataset.depth = String(v.depth);
     row.style.setProperty('--depth', String(v.depth));
     row.style.setProperty('--i', String(openIndex));
@@ -444,6 +451,70 @@ const toggleExpanded = (id: string): void => {
   if (!expanded.delete(id)) expanded.add(id);
   saveExpanded();
   current.render(true);
+};
+
+// --------------------------------------------------------------------- today
+
+const tokenEl = document.getElementById('token')!;
+const tokenInput = qs(tokenEl, 'input') as HTMLInputElement;
+const tokenHint = qs(tokenEl, '.token-hint');
+const TOKEN_HINT = 'Todoist · Settings · Integrations · Developer';
+let afterToken: (() => void) | null = null;
+let checkingToken = false;
+
+const closeTokenPrompt = (): void => {
+  afterToken = null;
+  tokenEl.classList.remove('show', 'wrong');
+  tokenInput.blur();
+  tokenInput.value = '';
+};
+
+/** The one thing Point ever asks for: shown the first time a line is sent to today */
+const askForToken = (then: () => void): void => {
+  afterToken = then;
+  tokenHint.textContent = TOKEN_HINT;
+  tokenEl.classList.add('show');
+  tokenInput.focus();
+};
+
+const submitToken = async (): Promise<void> => {
+  if (checkingToken || !tokenInput.value.trim()) return;
+  checkingToken = true;
+  tokenEl.classList.remove('wrong');
+  tokenHint.textContent = 'Checking';
+  const result = await today.connect(tokenInput.value);
+  checkingToken = false;
+  if (!tokenEl.classList.contains('show')) return;
+  if (result === 'ok') {
+    const then = afterToken;
+    closeTokenPrompt();
+    then?.();
+    return;
+  }
+  tokenEl.classList.add('wrong');
+  tokenHint.textContent = result === 'offline' ? "Couldn't reach Todoist" : "That token didn't work";
+};
+
+tokenInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    void submitToken();
+  } else if (e.key === 'Escape') {
+    closeTokenPrompt();
+  }
+});
+tokenInput.addEventListener('paste', () => window.setTimeout(() => void submitToken(), 0));
+tokenEl.addEventListener('click', (e) => {
+  if (e.target === tokenEl) closeTokenPrompt();
+});
+
+const sendToday = (id: string): void => {
+  if (!today.hasToken() && !today.isMarked(id)) {
+    askForToken(() => sendToday(id));
+    return;
+  }
+  haptic('medium');
+  today.toggle(id);
 };
 
 // ------------------------------------------------------------------- editing
@@ -682,8 +753,9 @@ interface Swipe {
   id: string;
   base: number;
   dx: number;
-  armed: -1 | 0 | 1;
+  armed: -1 | 0 | 1 | 2;
   canFold: boolean;
+  canToday: boolean;
 }
 
 let swipe: Swipe | null = null;
@@ -700,33 +772,39 @@ const beginSwipe = (x: number): void => {
     dx: 0,
     armed: 0,
     canFold: row.classList.contains('parent'),
+    // A struck line is finished: it can be taken out of today, but not put in
+    canToday: !row.classList.contains('done') || row.classList.contains('today'),
   };
   swipe.face.getAnimations().forEach((a) => a.cancel());
   row.classList.add('swiping');
+  row.classList.toggle('inert-right', !swipe.canFold && !swipe.canToday);
 };
 
 const moveSwipe = (x: number): void => {
   const s = swipe!;
   const raw = x - s.base;
-  // A line with nothing inside has nothing to unfold: it gives a little, then holds
-  s.dx = raw > 0 && !s.canFold ? raw * 0.16 : raw;
+  // With nothing to do in that direction, a line gives a little, then holds
+  s.dx = raw > 0 && !s.canFold && !s.canToday ? raw * 0.16 : raw;
   s.face.style.transform = `translate3d(${s.dx}px,0,0)`;
   s.under.dataset.dir = s.dx > 0 ? '1' : '-1';
-  s.under.style.setProperty('--p', String(clamp(Math.abs(s.dx) / SWIPE_ARM)));
-  const armed = s.dx > SWIPE_ARM && s.canFold ? 1 : s.dx < -SWIPE_ARM ? -1 : 0;
+  // The first stop to the right is unfolding; where there is nothing to unfold, the point grows all the way
+  const reach = s.dx > 0 && !s.canFold ? TODAY_ARM : SWIPE_ARM;
+  s.under.style.setProperty('--p', String(clamp(Math.abs(s.dx) / reach)));
+  const armed = s.dx >= TODAY_ARM && s.canToday ? 2 : s.dx > SWIPE_ARM && s.canFold ? 1 : s.dx < -SWIPE_ARM ? -1 : 0;
   if (armed !== s.armed) {
     s.armed = armed;
     if (armed) haptic('light');
     s.row.classList.toggle('arm-done', armed === -1);
     s.row.classList.toggle('arm-fold', armed === 1);
+    s.row.classList.toggle('arm-today', armed === 2);
   }
 };
 
 const endSwipe = (cancelled: boolean): void => {
   const s = swipe!;
   swipe = null;
-  let armed: -1 | 0 | 1 = cancelled ? 0 : s.armed;
-  // A quick flick counts even if it didn't travel far
+  let armed: -1 | 0 | 1 | 2 = cancelled ? 0 : s.armed;
+  // A quick flick counts even if it didn't travel far (never as the far stop, which is deliberate)
   if (!cancelled && !armed && Math.abs(g.vx) > 0.6 && Math.abs(s.dx) > 26 && Math.sign(g.vx) === Math.sign(s.dx)) {
     armed = s.dx < 0 ? -1 : s.canFold ? 1 : 0;
   }
@@ -736,12 +814,14 @@ const endSwipe = (cancelled: boolean): void => {
   // Either way the line settles back where it was; what changes is the list around it
   face.style.transform = '';
   const back = face.animate([{ transform: from }, { transform: 'translate3d(0,0,0)' }], { duration: 280, easing: EASE });
-  back.onfinish = () => row.classList.remove('swiping');
-  row.classList.remove('arm-done', 'arm-fold');
+  back.onfinish = () => row.classList.remove('swiping', 'inert-right');
+  row.classList.remove('arm-done', 'arm-fold', 'arm-today');
   if (!armed || !store.items[id]) return;
   if (armed === -1) {
     haptic('medium');
     mutate(() => store.setCompleted(id, !store.items[id].isCompleted), true);
+  } else if (armed === 2) {
+    sendToday(id);
   } else {
     haptic('light');
     toggleExpanded(id);
@@ -1317,6 +1397,7 @@ const boot = (): void => {
   path = (saved && store.pathTo(saved)) || [store.rootId];
   show(path[path.length - 1], 0);
   requestAnimationFrame(hideSplash);
+  today.sync(true);
 };
 
 store.onChange(() => {
@@ -1333,7 +1414,26 @@ store.onChange(() => {
   current.render(true);
 });
 
+// Points appear, fill in and disappear as Todoist hears about them
+today.onChange(() => {
+  if (!booted || renderLock) return;
+  if (isGesturing()) renderQueued = true;
+  else current.render(false);
+});
+
+// Todoist is asked what changed whenever Point comes into view, and about once a minute while it stays there
+const pullToday = (): void => {
+  if (booted && document.visibilityState === 'visible') today.sync(true);
+};
+document.addEventListener('visibilitychange', pullToday);
+window.addEventListener('online', pullToday);
+window.setInterval(pullToday, 60_000);
+
 onBackButton(() => {
+  if (tokenEl.classList.contains('show')) {
+    closeTokenPrompt();
+    return true;
+  }
   if (editing) {
     finishEdit('blur');
     return true;
@@ -1343,6 +1443,7 @@ onBackButton(() => {
 
 onAppResume(() => {
   if (booted && !editing && !isGesturing()) current.render(false);
+  pullToday();
 });
 
 syncSystemBars();

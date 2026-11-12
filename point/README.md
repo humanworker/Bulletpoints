@@ -17,6 +17,7 @@ beneath it; every gesture works on those lines too.
 | Tap the title | Rename the list you're in |
 | Swipe left | Strike it through (again to restore it) |
 | Swipe right | Unfold what's inside it, in place; again to fold it away |
+| Swipe right, as far again | Send it to Todoist, due today; again to take it back out |
 | Pull down | New line at the top. Pull as far again to go up a level |
 | Tap below the list | New line at the end |
 | Pinch apart | New line between two others |
@@ -37,6 +38,28 @@ collapse state, which Point never changes.
 Things Point deliberately leaves out: search, formatting, font sizes, tasks, shortcuts, collapse
 state, settings. It keeps whatever the main app stored for those and never changes them. The theme
 follows the system.
+
+## Todoist
+
+Swiping a line right past the first stop, the same distance again, sends it to your Todoist Inbox
+due today. The line gets a small point at its right edge: hollow while it is waiting to reach
+Todoist (offline, say), solid once the task exists. The same swipe again takes the line back out
+and deletes the task.
+
+- Completing the task in Todoist strikes the line through in Point; striking the line in Point
+  completes the task. Restoring works both ways too.
+- Rewording the line in Point renames the task. Renaming the task in Todoist is not copied back.
+- Deleting the task in Todoist just removes the point; the line stays. Clearing or deleting the
+  line in Point leaves the task in Todoist as it is.
+- Only the line itself is sent, not the items inside it. A struck-through line can't be sent.
+
+The first time, Point asks for your Todoist API token (Todoist → Settings → Integrations →
+Developer); pasting it is enough. The token stays on the phone and is never written to the shared
+outline; only the task's id is stored on the item. If Todoist stops accepting the token, Point
+forgets it and asks again the next time a line is sent.
+
+There is no server involved, so changes made in Todoist are picked up when Point is opened, when
+it comes back to the foreground, and about once a minute while it is open.
 
 ## Data
 

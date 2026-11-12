@@ -185,6 +185,35 @@ body {
   color: rgba(var(--fg-rgb), 0.34);
 }
 
+/* A point at the end of a line: it is in Todoist, due today. Hollow until Todoist has it. */
+.point {
+  position: absolute;
+  right: var(--pad);
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  margin-top: -3.5px;
+  border-radius: 50%;
+  background: var(--fg);
+  opacity: 0;
+  transform: scale(0);
+  transition: opacity 200ms, transform 280ms var(--ease), background-color 200ms;
+}
+.row.today .point {
+  opacity: 1;
+  transform: none;
+}
+.row.today-pending .point {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--fg);
+}
+.row.today.done .point {
+  opacity: 0;
+}
+.row.today:not(.done) .count {
+  right: 16px;
+}
+
 .row.parent .text {
   font-weight: 640;
 }
@@ -230,7 +259,7 @@ body {
   transform: scale(calc(0.6 + var(--p, 0) * 0.4));
 }
 .under[data-dir='1'] .u-r,
-.under[data-dir='-1'] .u-l {
+.under[data-dir='-1'] .u-left {
   visibility: hidden;
 }
 .under svg {
@@ -239,8 +268,28 @@ body {
 .row.expanded .u-l svg {
   transform: rotate(180deg);
 }
-.row:not(.parent) .u-l {
-  visibility: hidden;
+.u-left {
+  display: flex;
+}
+/* Swiping right shows what it will do: unfold at the first stop, send to today at the second.
+   A line with nothing inside goes straight to the point. */
+.u-t,
+.row:not(.parent) .u-l,
+.row.arm-today .u-l,
+.row.inert-right .u-t {
+  display: none;
+}
+.row:not(.parent) .u-t,
+.row.arm-today .u-t {
+  display: flex;
+}
+/* Already in today: the point shown is hollow, because this swipe takes it back out */
+.row.today .u-t circle {
+  fill: none;
+}
+.row.arm-today .under {
+  background: var(--fg);
+  color: var(--bg);
 }
 .row.arm-done .under {
   background: var(--green);
@@ -452,6 +501,63 @@ body {
   font-weight: 720;
   height: 48px;
   padding: 0 14px;
+}
+
+/* The only question Point ever asks, once: the Todoist token */
+#token {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: var(--bg);
+  padding: calc(44px + env(safe-area-inset-top)) var(--pad) 0;
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 200ms, transform 280ms var(--ease), visibility 0s 280ms;
+  visibility: hidden;
+}
+#token.show {
+  opacity: 1;
+  transform: none;
+  visibility: visible;
+  transition: opacity 200ms, transform 280ms var(--ease);
+}
+.token-title {
+  font-size: 34px;
+  line-height: 1.12;
+  font-weight: 740;
+  letter-spacing: -0.028em;
+}
+#token input {
+  appearance: none;
+  display: block;
+  width: 100%;
+  margin: 26px 0 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: none;
+  color: var(--fg);
+  caret-color: var(--fg);
+  font: inherit;
+  font-size: 19px;
+  font-weight: 520;
+  letter-spacing: -0.012em;
+  user-select: text;
+  -webkit-user-select: text;
+}
+#token input::placeholder {
+  color: rgba(var(--fg-rgb), 0.28);
+}
+.token-hint {
+  margin-top: 22px;
+  font-size: 13px;
+  font-weight: 620;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: rgba(var(--fg-rgb), 0.3);
+}
+#token.wrong .token-hint {
+  color: var(--red);
 }
 
 #sync {

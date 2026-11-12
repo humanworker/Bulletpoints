@@ -26,6 +26,7 @@ const itemsEqual = (a?: Item, b?: Item): boolean => {
     !!a.isItalic === !!b.isItalic &&
     !!a.isUnderlined === !!b.isUnderlined &&
     (a.fontSize || 'small') === (b.fontSize || 'small') &&
+    (a.todoistId || '') === (b.todoistId || '') &&
     a.children.length === b.children.length &&
     a.children.every((c, i) => c === b.children[i])
   );
@@ -197,6 +198,13 @@ export class Store {
     const item = this.items[id];
     if (!item || item.text === html) return;
     this.commit({ ...this.items, [id]: { ...item, text: html } });
+  }
+
+  /** Link a line to its Todoist task. An empty id unlinks it (the field is kept, so the change syncs). */
+  setTodoistId(id: string, todoistId: string): void {
+    const item = this.items[id];
+    if (!item || (item.todoistId || '') === todoistId) return;
+    this.commit({ ...this.items, [id]: { ...item, todoistId } });
   }
 
   setCompleted(id: string, done: boolean): void {

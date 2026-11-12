@@ -443,6 +443,7 @@ const itemsEqual = (a?: Item, b?: Item): boolean => {
     !!a.isItalic === !!b.isItalic &&
     !!a.isUnderlined === !!b.isUnderlined &&
     (a.fontSize || 'small') === (b.fontSize || 'small') &&
+    (a.todoistId || '') === (b.todoistId || '') &&
     a.children.length === b.children.length &&
     a.children.every((c, i) => c === b.children[i])
   );

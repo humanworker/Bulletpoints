@@ -11,6 +11,8 @@ export interface Item {
   isBold?: boolean;
   isItalic?: boolean;
   isUnderlined?: boolean;
+  /** Set by Point when the line has been sent to Todoist; empty or absent otherwise */
+  todoistId?: string;
 }
 
 export type ItemMap = Record<string, Item>;
