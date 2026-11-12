@@ -30,6 +30,12 @@ const tree: Seed[] = [
   'Questions for the accountant',
   'Things to sell',
   'Films',
+  'Podcasts',
+  'Garden',
+  'Bike repairs',
+  'Birthdays',
+  'Packing list',
+  'Wines we liked',
 ];
 
 export const sampleState = (): OutlineState => {

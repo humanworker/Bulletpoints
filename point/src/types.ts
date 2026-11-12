@@ -12,6 +12,8 @@ export interface Item {
   isItalic?: boolean;
   isUnderlined?: boolean;
   isDivider?: boolean; // a horizontal rule, not text: made by pinching far apart in Point
+  /** Set by Point when the line has been sent to Todoist; empty or absent otherwise */
+  todoistId?: string;
 }
 
 export type ItemMap = Record<string, Item>;
