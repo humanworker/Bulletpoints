@@ -12,6 +12,8 @@ export interface Item {
   isBold?: boolean;
   isItalic?: boolean;
   isUnderlined?: boolean;
+  // Set by Point (the minimal companion app) when the item has been sent to Todoist
+  todoistId?: string;
 }
 
 export interface ItemMap {
