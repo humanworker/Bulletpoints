@@ -4,6 +4,11 @@
   --fg-rgb: 22, 21, 15;
   --lift: #ffffff;
   --divider: #16150f; /* white would vanish on the light background */
+  /* The colour ramp the list takes down the page, as three stops (r g b). Light mode uses deeper
+     shades of the same hues so every line still reads on the cream ground. */
+  --tone-0: 201 48 44;
+  --tone-1: 169 74 7;
+  --tone-2: 138 90 0;
   --green: #1f9d55;
   --red: #dc3b33;
   --row: 56px;
@@ -19,6 +24,9 @@
     --fg-rgb: 244, 243, 238;
     --lift: #1b1b1d;
     --divider: #ffffff;
+    --tone-0: 255 107 94;
+    --tone-1: 255 185 56;
+    --tone-2: 255 226 122;
     --green: #2fd15a;
     --red: #ff4a3d;
     color-scheme: dark;
@@ -101,6 +109,7 @@ body {
   outline: none;
   overflow-wrap: anywhere;
   caret-color: var(--fg);
+  color: var(--tone, var(--fg));
 }
 .title.is-editing {
   user-select: text;
@@ -148,8 +157,8 @@ body {
   overflow-wrap: anywhere;
   outline: none;
   caret-color: var(--fg);
-  /* The top of a list is what matters most; items quieten as they go down */
-  opacity: max(0.56, calc(1 - var(--i, 0) * 0.04));
+  /* The ramp starts at the title and carries on down the list (--tone is set per line) */
+  color: var(--tone, var(--fg));
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 4;
@@ -200,7 +209,7 @@ body {
   flex: 1;
   height: 3px;
   border-radius: 2px;
-  background: var(--divider);
+  background: var(--tone, var(--divider));
 }
 .row.divider .text,
 .row.divider .count,
@@ -411,7 +420,7 @@ body {
   pointer-events: none;
 }
 .ghost.armed {
-  color: var(--fg);
+  color: var(--tone, var(--fg));
 }
 /* Pinched far enough for a divider: the label gives way to the line */
 .ghost::after {
@@ -423,7 +432,7 @@ body {
   height: 3px;
   margin-top: -1.5px;
   border-radius: 2px;
-  background: var(--divider);
+  background: var(--tone, var(--divider));
   opacity: 0;
   transition: opacity 150ms;
 }

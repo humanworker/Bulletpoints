@@ -52,6 +52,23 @@ const setY = (el: HTMLElement, y: number): void => {
 };
 const qs = (root: Element, selector: string): HTMLElement => root.querySelector(selector) as HTMLElement;
 
+// The list is coloured by a ramp (the --tone-N stops in the stylesheet) that starts at the title and
+// runs down the lines, dividers included. A short list covers only the first part of the ramp.
+const TONE_SPAN = 9;
+const readTones = (): number[][] => {
+  const css = getComputedStyle(document.documentElement);
+  return [0, 1, 2].map((i) => css.getPropertyValue(`--tone-${i}`).trim().split(/\s+/).map(Number));
+};
+/** Colour for place `pos` in a list of `count` lines; the title is place 0 */
+const toneAt = (stops: number[][], pos: number, count: number): string => {
+  if (stops.some((s) => s.length !== 3 || s.some(Number.isNaN))) return '';
+  const t = clamp(pos / Math.max(count, TONE_SPAN));
+  const k = Math.min(stops.length - 2, Math.floor(t * (stops.length - 1)));
+  const u = t * (stops.length - 1) - k;
+  const c = stops[k].map((v, i) => Math.round(v + (stops[k + 1][i] - v) * u));
+  return `rgb(${c[0]},${c[1]},${c[2]})`;
+};
+
 // ------------------------------------------------------------------- screens
 
 // Which lines are unfolded. This is how Point is being looked at on this phone, not part of the
@@ -248,6 +265,9 @@ class Screen {
       if (this.rows.children[i] !== row) this.rows.insertBefore(row, this.rows.children[i] ?? null);
     });
     this.el.classList.toggle('is-empty', desired.length === 0);
+    const stops = readTones();
+    this.head.style.setProperty('--tone', toneAt(stops, 0, desired.length));
+    desired.forEach((row, i) => row.style.setProperty('--tone', toneAt(stops, i + 1, desired.length)));
 
     if (!animate) return;
     let entering = 0;
@@ -1137,6 +1157,7 @@ const beginPinch = (e: TouchEvent): void => {
   const beforeId = belowId && !store.items[belowId].isCompleted ? belowId : null;
   const { at, depth } = screen.slot(screen.visible(), parentId, beforeId);
   screen.ghost.style.paddingLeft = `calc(var(--pad) + ${depth * INDENT}px)`;
+  screen.ghost.style.setProperty('--tone', toneAt(readTones(), at + 1, all.length + 1));
   screen.ghost.style.setProperty('--ghost-left', `calc(var(--pad) + ${depth * INDENT}px)`);
   pinch = {
     screen,
@@ -1462,6 +1483,9 @@ onAppResume(() => {
 });
 
 syncSystemBars();
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+  if (booted && !editing && !isGesturing()) current.render(false);
+});
 
 if (store.ready) {
   boot();
