@@ -303,9 +303,13 @@ body {
 .u-left {
   display: flex;
 }
+/* The fold arrow wears the line's own colour */
+.under .u-l {
+  color: var(--tone, var(--fg));
+}
 /* Swiping right shows what it will do: unfold at the first stop, send to today at the second.
    A line with nothing inside goes straight to the point. */
-.u-t,
+.under .u-t,
 .row:not(.parent) .u-l,
 .row.arm-today .u-l,
 .row.inert-right .u-t {
@@ -330,10 +334,6 @@ body {
 }
 .row.done.arm-done .under {
   background: rgba(var(--fg-rgb), 0.14);
-  color: var(--fg);
-}
-/* The first stop to the right is only the arrow, with no fill behind it */
-.row.arm-fold .under {
   color: var(--fg);
 }
 
@@ -419,7 +419,8 @@ body {
   font-size: 19px;
   font-weight: 520;
   letter-spacing: -0.012em;
-  color: rgba(var(--fg-rgb), 0.3);
+  /* A softer version of the colour the new line will have (--tone-dim is set with --tone) */
+  color: var(--tone-dim, rgba(var(--fg-rgb), 0.3));
   transition: color 150ms;
   pointer-events: none;
 }
