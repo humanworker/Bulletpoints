@@ -320,16 +320,20 @@ body {
   fill: none;
 }
 .row.arm-today .under {
-  background: var(--fg);
+  /* The far stop fills with the line's own colour from the ramp */
+  background: var(--tone, var(--fg));
   color: var(--bg);
 }
 .row.arm-done .under {
   background: var(--green);
   color: #fff;
 }
-.row.done.arm-done .under,
-.row.arm-fold .under {
+.row.done.arm-done .under {
   background: rgba(var(--fg-rgb), 0.14);
+  color: var(--fg);
+}
+/* The first stop to the right is only the arrow, with no fill behind it */
+.row.arm-fold .under {
   color: var(--fg);
 }
 

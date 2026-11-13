@@ -867,6 +867,9 @@ const beginPull = (y: number): void => {
   ghost.style.display = 'flex';
   ghost.style.height = '';
   ghost.style.top = `${-ROW_H}px`;
+  // The new line takes the first colour after the title; without this the ghost keeps whatever a
+  // pinch left on it, or falls back to plain white
+  ghost.style.setProperty('--tone', toneAt(readTones(), 1, current.rows.children.length + 1));
 };
 
 const movePull = (y: number): void => {
