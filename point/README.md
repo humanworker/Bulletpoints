@@ -51,6 +51,9 @@ and deletes the task.
 - Rewording the line in Point renames the task. Renaming the task in Todoist is not copied back.
 - Deleting the task in Todoist just removes the point; the line stays. Clearing or deleting the
   line in Point leaves the task in Todoist as it is.
+- The name of the line's parent goes in the task's description, for context when you're in Todoist.
+  It follows the line if the parent is renamed or the line is moved; lines at the top level get
+  no description. Point owns the description, so anything you type there is replaced.
 - Only the line itself is sent, not the items inside it. A struck-through line can't be sent.
 
 The first time, Point asks for your Todoist API token (Todoist → Settings → Integrations →
