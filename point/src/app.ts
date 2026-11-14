@@ -55,18 +55,19 @@ const qs = (root: Element, selector: string): HTMLElement => root.querySelector(
 // The list is coloured by a ramp (the --tone-N stops in the stylesheet) that starts at the title and
 // runs down the lines, dividers included. A short list covers only the first part of the ramp.
 const TONE_SPAN = 9;
+const GHOST_ALPHA = 0.4; // how faint a new line's colour is while it is still being pulled open
 const readTones = (): number[][] => {
   const css = getComputedStyle(document.documentElement);
   return [0, 1, 2].map((i) => css.getPropertyValue(`--tone-${i}`).trim().split(/\s+/).map(Number));
 };
 /** Colour for place `pos` in a list of `count` lines; the title is place 0 */
-const toneAt = (stops: number[][], pos: number, count: number): string => {
+const toneAt = (stops: number[][], pos: number, count: number, alpha = 1): string => {
   if (stops.some((s) => s.length !== 3 || s.some(Number.isNaN))) return '';
   const t = clamp(pos / Math.max(count, TONE_SPAN));
   const k = Math.min(stops.length - 2, Math.floor(t * (stops.length - 1)));
   const u = t * (stops.length - 1) - k;
   const c = stops[k].map((v, i) => Math.round(v + (stops[k + 1][i] - v) * u));
-  return `rgb(${c[0]},${c[1]},${c[2]})`;
+  return alpha < 1 ? `rgba(${c[0]},${c[1]},${c[2]},${alpha})` : `rgb(${c[0]},${c[1]},${c[2]})`;
 };
 
 // ------------------------------------------------------------------- screens
@@ -867,6 +868,11 @@ const beginPull = (y: number): void => {
   ghost.style.display = 'flex';
   ghost.style.height = '';
   ghost.style.top = `${-ROW_H}px`;
+  // The new line takes the first colour after the title; without this the ghost keeps whatever a
+  // pinch left on it, or falls back to plain white
+  const count = current.rows.children.length + 1;
+  ghost.style.setProperty('--tone', toneAt(readTones(), 1, count));
+  ghost.style.setProperty('--tone-dim', toneAt(readTones(), 1, count, GHOST_ALPHA));
 };
 
 const movePull = (y: number): void => {
@@ -1158,6 +1164,7 @@ const beginPinch = (e: TouchEvent): void => {
   const { at, depth } = screen.slot(screen.visible(), parentId, beforeId);
   screen.ghost.style.paddingLeft = `calc(var(--pad) + ${depth * INDENT}px)`;
   screen.ghost.style.setProperty('--tone', toneAt(readTones(), at + 1, all.length + 1));
+  screen.ghost.style.setProperty('--tone-dim', toneAt(readTones(), at + 1, all.length + 1, GHOST_ALPHA));
   screen.ghost.style.setProperty('--ghost-left', `calc(var(--pad) + ${depth * INDENT}px)`);
   pinch = {
     screen,

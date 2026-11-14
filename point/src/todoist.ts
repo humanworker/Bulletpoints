@@ -17,6 +17,8 @@ const STATE_KEY = 'point-todoist-state';
 interface Shadow {
   done: boolean;
   content: string;
+  /** The parent line's name, kept in the task's description for context. Absent in older bookkeeping. */
+  description?: string;
 }
 
 interface State {
@@ -42,6 +44,7 @@ interface RemoteTask {
   checked?: boolean;
   is_deleted?: boolean;
   completed_at?: string | null;
+  description?: string;
 }
 
 const taskText = (html: string): string => htmlToPlain(html).replace(/\s+/g, ' ').trim();
@@ -76,6 +79,14 @@ export class Today {
   }
 
   // ---------------------------------------------------------------- reading
+
+  /** The name of the line's parent, for the task's description. Empty at the top level, where it would only say "Home". */
+  private contextOf(id: string): string {
+    const parentId = this.store.parentOf(id);
+    if (!parentId || parentId === this.store.rootId) return '';
+    const parent = this.store.items[parentId];
+    return parent ? taskText(parent.text) : '';
+  }
 
   onChange(listener: () => void): void {
     this.listeners.add(listener);
@@ -206,7 +217,10 @@ export class Today {
         state.pending = state.pending.filter((p) => p !== itemId);
         continue;
       }
-      const task = (await this.call('POST', '/tasks', { content, due_string: 'today' })) as RemoteTask;
+      const description = this.contextOf(itemId);
+      const body: Record<string, string> = { content, due_string: 'today' };
+      if (description) body.description = description;
+      const task = (await this.call('POST', '/tasks', body)) as RemoteTask;
       const taskId = String(task.id);
       if (!state.pending.includes(itemId) || !store.items[itemId]) {
         // Taken back out, or removed, while the request was on its way
@@ -215,7 +229,7 @@ export class Today {
         continue;
       }
       state.pending = state.pending.filter((p) => p !== itemId);
-      state.shadow[taskId] = { done: false, content };
+      state.shadow[taskId] = { done: false, content, description };
       this.save();
       store.setTodoistId(itemId, taskId);
       this.emit();
@@ -253,9 +267,14 @@ export class Today {
           shadow.done = !!item.isCompleted;
         }
         const content = taskText(item.text);
-        if (content && content !== shadow.content) {
-          await this.call('POST', `/tasks/${taskId}`, { content });
-          shadow.content = content;
+        const description = this.contextOf(linked.id);
+        const update: Record<string, string> = {};
+        if (content && content !== shadow.content) update.content = content;
+        if (description !== (shadow.description ?? '')) update.description = description;
+        if (Object.keys(update).length) {
+          await this.call('POST', `/tasks/${taskId}`, update);
+          if (update.content !== undefined) shadow.content = update.content;
+          if (update.description !== undefined) shadow.description = update.description;
         }
       } catch (error) {
         if (!isStatus(error, 404)) throw error;
@@ -275,7 +294,7 @@ export class Today {
     try {
       const task = (await this.call('GET', `/tasks/${taskId}`)) as RemoteTask;
       if (task.is_deleted) return null;
-      return { done: !!task.checked || !!task.completed_at, content: String(task.content ?? '') };
+      return { done: !!task.checked || !!task.completed_at, content: String(task.content ?? ''), description: String(task.description ?? '') };
     } catch (error) {
       if (!isStatus(error, 404)) throw error;
     }
@@ -286,7 +305,7 @@ export class Today {
       const query = `since=${encodeURIComponent(since.toISOString())}&until=${encodeURIComponent(until.toISOString())}&limit=200`;
       const answer = (await this.call('GET', `/tasks/completed/by_completion_date?${query}`)) as { items?: RemoteTask[] };
       const found = (answer.items || []).find((t) => String(t.id) === taskId);
-      if (found) return { done: true, content: String(found.content ?? '') };
+      if (found) return { done: true, content: String(found.content ?? ''), description: String(found.description ?? '') };
     } catch (error) {
       if (!(error instanceof HttpError)) throw error;
     }
